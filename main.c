@@ -3,27 +3,7 @@
 #include <fcntl.h>
 #include <string.h>
 
-#define MAX_STRING_SIZE 1024
-
-typedef enum {
-    NUMBER,
-    BOOLEAN,
-    CHARACTER,
-    STRING,
-} atom_type;
-
-typedef struct {
-    atom_type type;
-    union {
-        long int number_value;
-        char character_value;
-        char string_value[MAX_STRING_SIZE]; // this is really wasteful isn't it
-    };
-} atom;
-
-typedef struct {
-    atom atomic_value;
-} sexp;
+#include "language.h"
 
 int
 is_number (char *token) {
@@ -73,14 +53,129 @@ is_string_end (char *token, size_t token_size) {
     return token[token_size - 1] == '"';
 }
 
-sexp *
-parse (char *program_txt) {
-    const char delim[2] = "\n ";
-    char *token;
-    char *string_buf;
+int
+is_nil (char *token, size_t token_size) {
+    if (token_size == 2) {
+        return token[0] == '(' && token[1] == ')';
+    }
+    return 0;
+}
+
+char *
+_next_token () {
+    return strtok(NULL, "\n ");
+}
+
+atom *
+parse_atom (char *token, size_t token_size) {
+    struct atom *atom;
     int string_buf_idx;
     int token_buf_idx;
     int string_terminated;
+
+    atom = (struct atom*)(malloc(sizeof(atom)));
+
+    if (is_number(token)) {
+        atom->type = NUMBER;
+        atom->number_value = strtol(token, NULL, 0);
+    } else if (is_boolean(token, token_size)) {
+        atom->type = BOOLEAN;
+        atom->number_value = (token[1] == 't');
+    } else if (is_character(token, token_size)) {
+        atom->type = CHARACTER;
+        atom->character_value = to_character(token, token_size);
+    } else if (is_string_start(token)) {
+        atom->type = STRING;
+        
+        string_buf_idx = 0;
+        string_terminated = 0;
+        while (token != NULL) {
+            token_size = strlen(token);
+            int token_buf_start = 0;
+            if (is_string_start(token)) {
+                token_buf_start++;
+            }
+
+            int token_buf_end = token_size;
+            if (is_string_end(token, token_size)) {
+                token_buf_end--;
+                string_terminated = 1;
+            }
+
+            for (token_buf_idx=token_buf_start; token_buf_idx < token_buf_end; token_buf_idx++) {
+                char c = token[token_buf_idx];
+                if (c == '"') {
+                    printf("Can't terminate quote here: %s\n", token);
+                    exit(1);
+                }
+                if (c == '\\') {
+                    token_buf_idx++;
+                    if (token_buf_idx == token_buf_end) {
+                        printf("Can't end string with escape character\n");
+                        exit(1);
+                    }
+                    c = token[token_buf_idx];
+                    if (c == 'n') {
+                        atom->string_value[string_buf_idx++] = '\n';
+                        continue;
+                    }
+                }
+                atom->string_value[string_buf_idx++] = c;
+            }
+
+            if (string_terminated) {
+                atom->string_value[string_buf_idx] = '\0';
+                break;
+            } else {
+                atom->string_value[string_buf_idx++] = ' ';
+                token = _next_token();
+            }
+        }
+
+        if (!string_terminated) {
+            printf("Unterminated string\n");
+            exit(1);
+        }
+    } else {
+        atom = NULL;
+    }
+    return atom;
+}
+
+int
+is_pair_start (char *token) {
+    return token[0] == '(';
+}
+
+int
+is_pair_end (char *token, size_t token_size) {
+    return token[token_size - 1] == ')';
+}
+
+pair *
+parse_pair (char *token, size_t token_size) {
+    return NULL;
+}
+
+int
+parse_sexp (char *token, size_t token_size, sexp *exp) {
+    if (is_nil(token, token_size)) {
+        exp->type = NIL;
+        return 0;
+    } else if (exp->pair = parse_pair(token, token_size)) {
+        exp->type = PAIR;
+        return 0;
+    } else if (exp->atom = parse_atom(token, token_size)) {
+        exp->type = ATOM;
+        return 0;
+    }
+    return 1;
+}
+
+sexp *
+parse_program (char *program_txt) {
+    const char delim[2] = "\n ";
+    char *token;
     size_t token_size;
     sexp *program;
     sexp curr_exp;
@@ -97,81 +192,12 @@ parse (char *program_txt) {
     while (token != NULL) {
         token_size = strlen(token);
         curr_exp = (sexp){0};
-        if (is_number(token)) {
-            curr_exp.atomic_value = (atom){
-                type: NUMBER,
-                number_value: strtol(token, NULL, 0),
-            };
-        } else if (is_boolean(token, token_size)) {
-            curr_exp.atomic_value = (atom){
-                type: BOOLEAN,
-                number_value: (token[1] == 't'),
-            };
-        } else if (is_character(token, token_size)) {
-            curr_exp.atomic_value = (atom) {
-                type: CHARACTER,
-                character_value: to_character(token, token_size),
-            };
-        } else if (is_string_start(token)) {
-            curr_exp.atomic_value = (atom) {
-                type: STRING,
-            };
-            
-            string_buf = curr_exp.atomic_value.string_value;
-            string_buf_idx = 0;
-            string_terminated = 0;
-            while (token != NULL) {
-                token_size = strlen(token);
-                int token_buf_start = 0;
-                if (is_string_start(token)) {
-                    token_buf_start++;
-                }
-
-                int token_buf_end = token_size;
-                if (is_string_end(token, token_size)) {
-                    token_buf_end--;
-                    string_terminated = 1;
-                }
-
-                for (token_buf_idx=token_buf_start; token_buf_idx < token_buf_end; token_buf_idx++) {
-                    char c = token[token_buf_idx];
-                    if (c == '"') {
-                        printf("Can't terminate quote here: %s\n", token);
-                        exit(1);
-                    }
-                    if (c == '\\') {
-                        token_buf_idx++;
-                        if (token_buf_idx == token_buf_end) {
-                            printf("Can't end string with escape character\n");
-                            exit(1);
-                        }
-                        c = token[token_buf_idx];
-                        if (c == 'n') {
-                            string_buf[string_buf_idx++] = '\n';
-                            continue;
-                        }
-                    }
-                    string_buf[string_buf_idx++] = c;
-                }
-
-                if (string_terminated) {
-                    string_buf[string_buf_idx] = '\0';
-                    break;
-                } else {
-                    string_buf[string_buf_idx++] = ' ';
-                    token = strtok(NULL, delim);
-                }
-            }
-
-            if (!string_terminated) {
-                printf("Unterminated string\n");
-                exit(1);
-            }
+        if (!parse_sexp(token, token_size, &curr_exp)) {
+            program[program_idx++] = curr_exp;
         } else {
-            printf("Unexpected input: %s\n", token);
+            printf("Unknown token %s\n", token);
             exit(1);
         }
-        program[program_idx] = curr_exp;
         token = strtok(NULL, delim);
     }
 
@@ -185,24 +211,32 @@ eval (sexp *exp) {
 
 void
 print (sexp *exp) {
-    atom atom = exp->atomic_value;
-    if (atom.type == NUMBER) {
-        printf("%ld", atom.number_value);
-    } else if (atom.type == BOOLEAN) {
-        if (atom.number_value)
-            printf("#t");
-        else
-            printf("#f");
-    } else if (atom.type == CHARACTER) {
-        if (atom.character_value == ' ') {
-            printf("#\\space");
-        } else if (atom.character_value == '\n') {
-            printf("#\\newline");
+    if (exp->type == ATOM) {
+        atom *a = exp->atom;
+        if (a->type == NUMBER) {
+            printf("%ld", a->number_value);
+        } else if (a->type == BOOLEAN) {
+            if (a->number_value)
+                printf("#t");
+            else
+                printf("#f");
+        } else if (a->type == CHARACTER) {
+            if (a->character_value == ' ') {
+                printf("#\\space");
+            } else if (a->character_value == '\n') {
+                printf("#\\newline");
+            } else {
+                printf("#\\%c", a->character_value);
+            }
+        } else if (a->type == STRING) {
+            printf("%s", a->string_value);
         } else {
-            printf("#\\%c", atom.character_value);
+            printf("ERR: Unable to print invalid sexp");
         }
-    } else if (atom.type == STRING) {
-        printf("%s", atom.string_value);
+    } else if (exp->type == PAIR) {
+        printf("pair???");
+    } else if (exp->type == NIL) {
+        printf("()");
     } else {
         printf("ERR: Unable to print invalid sexp");
     }
@@ -219,7 +253,7 @@ int main (void) {
         getline(&buf, &buf_size, stdin);
 
         // evaluate
-        sexp *program = parse(buf);
+        sexp *program = parse_program(buf);
         sexp *result = eval(program);
 
         // print
