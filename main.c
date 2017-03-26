@@ -5,15 +5,15 @@
 
 #include "parse.h"
 
-sexp *
-eval (sexp *exp) {
+SExp *
+eval (SExp *exp) {
     return exp;
 }
 
 void
-print (sexp *exp) {
+print (SExp *exp) {
     if (exp->type == ATOM) {
-        atom *a = exp->atom;
+        Atom *a = exp->atom;
         if (a->type == NUMBER) {
             printf("%ld", a->number_value);
         } else if (a->type == BOOLEAN) {
@@ -54,8 +54,8 @@ int main (void) {
         getline(&buf, &buf_size, stdin);
 
         // evaluate
-        sexp *program = parse_program(buf);
-        sexp *result = eval(program);
+        SExp *program = parse_program(buf);
+        SExp *result = eval(program);
 
         // print
         print(result);

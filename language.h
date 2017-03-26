@@ -5,32 +5,32 @@ typedef enum {
     BOOLEAN,
     CHARACTER,
     STRING,
-} atom_type;
+} AtomType;
 
-typedef struct atom {
-    atom_type type;
+typedef struct Atom {
+    AtomType type;
     union {
         long int number_value;
         char character_value;
         char string_value[MAX_STRING_SIZE]; // this is really wasteful isn't it
     };
-} atom;
+} Atom;
 
 typedef enum {
     ATOM,
     PAIR,
     NIL,
-} sexp_type;
+} SExpType;
 
-typedef struct sexp {
-    sexp_type type;
+typedef struct SExp {
+    SExpType type;
     union {
-        struct atom* atom;
-        struct pair* pair;
+        struct Atom* atom;
+        struct Pair* pair;
     };
-} sexp;
+} SExp;
 
-typedef struct pair {
-    sexp cons;
-    struct pair* cdr;
-} pair;
+typedef struct Pair {
+    SExp cons;
+    struct Pair* cdr;
+} Pair;

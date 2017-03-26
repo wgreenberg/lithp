@@ -41,6 +41,7 @@ to_character (char *token, size_t token_size) {
             return ' ';
         }
     }
+    return '\0';
 }
 
 int
@@ -66,14 +67,14 @@ _next_token () {
     return strtok(NULL, "\n ");
 }
 
-atom *
+Atom *
 parse_atom (char *token, size_t token_size) {
-    struct atom *atom;
+    struct Atom *atom;
     int string_buf_idx;
     int token_buf_idx;
     int string_terminated;
 
-    atom = (struct atom*)(malloc(sizeof(atom)));
+    atom = (struct Atom*)(malloc(sizeof(Atom)));
 
     if (is_number(token)) {
         atom->type = NUMBER;
@@ -152,36 +153,36 @@ is_pair_end (char *token, size_t token_size) {
     return token[token_size - 1] == ')';
 }
 
-pair *
+Pair *
 parse_pair (char *token, size_t token_size) {
     return NULL;
 }
 
 int
-parse_sexp (char *token, size_t token_size, sexp *exp) {
+parse_sexp (char *token, size_t token_size, SExp *exp) {
     if (is_nil(token, token_size)) {
         exp->type = NIL;
         return 0;
-    } else if (exp->pair = parse_pair(token, token_size)) {
+    } else if ((exp->pair = parse_pair(token, token_size))) {
         exp->type = PAIR;
         return 0;
-    } else if (exp->atom = parse_atom(token, token_size)) {
+    } else if ((exp->atom = parse_atom(token, token_size))) {
         exp->type = ATOM;
         return 0;
     }
     return 1;
 }
 
-sexp *
+SExp *
 parse_program (char *program_txt) {
     const char delim[2] = "\n ";
     char *token;
     size_t token_size;
-    sexp *program;
-    sexp curr_exp;
+    SExp *program;
+    SExp curr_exp;
     int program_idx;
 
-    program = (sexp*)(malloc(1024 * sizeof(sexp)));
+    program = (SExp*)(malloc(1024 * sizeof(SExp)));
     if (program == NULL) {
         printf("Out of memory\n");
         exit(1);
@@ -191,7 +192,7 @@ parse_program (char *program_txt) {
     token = strtok(program_txt, delim);
     while (token != NULL) {
         token_size = strlen(token);
-        curr_exp = (sexp){0};
+        curr_exp = (SExp){0};
         if (!parse_sexp(token, token_size, &curr_exp)) {
             program[program_idx++] = curr_exp;
         } else {
