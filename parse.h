@@ -3,5 +3,5 @@
 SExp * parse_program (char *program_txt);
 
 int parse_sexp (char *token, size_t token_size, SExp *exp);
-Pair * parse_pair (char *token, size_t token_size);
-Atom * parse_atom (char *token, size_t token_size);
+int parse_pair (char *token, size_t token_size, Pair *pair);
+int parse_atom (char *token, size_t token_size, Atom *atom);

@@ -12,7 +12,7 @@ typedef struct Atom {
     union {
         long int number_value;
         char character_value;
-        char string_value[MAX_STRING_SIZE]; // this is really wasteful isn't it
+        char string_value[MAX_STRING_SIZE];
     };
 } Atom;
 

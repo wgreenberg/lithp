@@ -67,14 +67,11 @@ _next_token () {
     return strtok(NULL, "\n ");
 }
 
-Atom *
-parse_atom (char *token, size_t token_size) {
-    struct Atom *atom;
+int
+parse_atom (char *token, size_t token_size, Atom *atom) {
     int string_buf_idx;
     int token_buf_idx;
     int string_terminated;
-
-    atom = (struct Atom*)(malloc(sizeof(Atom)));
 
     if (is_number(token)) {
         atom->type = NUMBER;
@@ -138,9 +135,9 @@ parse_atom (char *token, size_t token_size) {
             exit(1);
         }
     } else {
-        atom = NULL;
+        return 1;
     }
-    return atom;
+    return 0;
 }
 
 int
@@ -153,21 +150,27 @@ is_pair_end (char *token, size_t token_size) {
     return token[token_size - 1] == ')';
 }
 
-Pair *
-parse_pair (char *token, size_t token_size) {
-    return NULL;
+int
+parse_pair (char *token, size_t token_size, Pair *pair) {
+    return 1;
 }
 
 int
 parse_sexp (char *token, size_t token_size, SExp *exp) {
+    Pair *pair = (Pair*)(malloc(sizeof(Pair)));
+    Atom *atom = (Atom*)(malloc(sizeof(Atom)));
     if (is_nil(token, token_size)) {
         exp->type = NIL;
         return 0;
-    } else if ((exp->pair = parse_pair(token, token_size))) {
+    } else if (parse_pair(token, token_size, pair) == 0) {
         exp->type = PAIR;
+        exp->pair = pair;
+        free(atom);
         return 0;
-    } else if ((exp->atom = parse_atom(token, token_size))) {
+    } else if (parse_atom(token, token_size, atom) == 0) {
         exp->type = ATOM;
+        exp->atom = atom;
+        free(pair);
         return 0;
     }
     return 1;
