@@ -65,8 +65,15 @@ is_delim (char c) {
     return 0;
 }
 
+void
+consume_whitespace () {
+    if (_t_idx >= _t_orig_len)
+        return;
+    _t_idx += strspn(_t_orig + _t_idx, " \n");
+}
+
 int
-_next_token(char *buf) {
+_next_token (char *buf) {
     if (_t_idx >= _t_orig_len)
         return 0;
 
@@ -196,18 +203,32 @@ parse_atom (char *token, size_t token_size, Atom *atom) {
 }
 
 int
-is_pair_start (char *token) {
-    return token[0] == '(';
-}
-
-int
-is_pair_end (char *token, size_t token_size) {
-    return token[token_size - 1] == ')';
-}
-
-int
 parse_pair (char *token, size_t token_size, Pair *pair) {
-    return 1;
+    pair->car = (SExp*)(malloc(sizeof(SExp)));
+    pair->cdr = (SExp*)(malloc(sizeof(SExp)));
+    if (parse_sexp(token, token_size, pair->car)) {
+        return 1;
+    }
+
+    consume_whitespace();
+
+    token = peek_next_token();
+    if (token == NULL) {
+        return 1;
+    } else if (token[0] == ')') {
+        pair->cdr->type = SEXP_TYPE_NIL;
+        return 0;
+    }
+
+    token = next_token();
+    token_size = strlen(token);
+    pair->cdr->pair = (Pair*)(malloc(sizeof(Pair)));
+    pair->cdr->type = SEXP_TYPE_PAIR;
+    if (parse_pair(token, token_size, pair->cdr->pair)) {
+        return 1;
+    }
+
+    return 0;
 }
 
 int
@@ -223,6 +244,11 @@ parse_sexp (char *token, size_t token_size, SExp *exp) {
             exp->type = SEXP_TYPE_NIL;
             return 0;
         } else if (parse_pair(token, token_size, pair) == 0) {
+            token = next_token();
+            if (token == NULL || token[0] != ')') {
+                printf("Unclosed parenthesis\n");
+                return 1;
+            }
             exp->type = SEXP_TYPE_PAIR;
             exp->pair = pair;
             free(atom);

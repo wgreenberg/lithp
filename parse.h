@@ -9,3 +9,4 @@ int parse_atom (char *token, size_t token_size, Atom *atom);
 char * tokenize (char *string);
 char * next_token ();
 char * peek_next_token ();
+void consume_whitespace ();

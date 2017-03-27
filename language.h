@@ -31,6 +31,6 @@ typedef struct SExp {
 } SExp;
 
 typedef struct Pair {
-    SExp cons;
-    struct Pair* cdr;
+    SExp *car;
+    SExp *cdr;
 } Pair;

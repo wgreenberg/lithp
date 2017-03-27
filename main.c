@@ -35,13 +35,16 @@ print (SExp *exp) {
             printf("ERR: Unable to print invalid sexp");
         }
     } else if (exp->type == SEXP_TYPE_PAIR) {
-        printf("pair???");
+        printf("(");
+        print(exp->pair->car);
+        printf(" ");
+        print(exp->pair->cdr);
+        printf(")");
     } else if (exp->type == SEXP_TYPE_NIL) {
         printf("()");
     } else {
         printf("ERR: Unable to print invalid sexp");
     }
-    printf("\n");
 }
 
 int main (void) {
@@ -55,10 +58,13 @@ int main (void) {
 
         // evaluate
         SExp *program = parse_program(buf);
+        if (program == NULL)
+            continue;
         SExp *result = eval(program);
 
         // print
         print(result);
+        printf("\n");
     }
     free(buf);
 }
