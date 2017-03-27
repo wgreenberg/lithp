@@ -5,10 +5,10 @@ CFLAGS = -Wall
 .PHONY: clean
 
 %.o: %.c $(HEADERS)
-	gcc -c -o $@ $< $(CFLAGS)
+	gcc -ggdb -c -o $@ $< $(CFLAGS)
 
 lithp: $(OBJ)
-	gcc -o $@ $^ $(CFLAGS)
+	gcc -ggdb -o $@ $^ $(CFLAGS)
 
 clean:
 	rm lithp
