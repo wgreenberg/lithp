@@ -12,16 +12,16 @@ eval (SExp *exp) {
 
 void
 print (SExp *exp) {
-    if (exp->type == ATOM) {
+    if (exp->type == SEXP_TYPE_ATOM) {
         Atom *a = exp->atom;
-        if (a->type == NUMBER) {
+        if (a->type == ATOM_TYPE_NUMBER) {
             printf("%ld", a->number_value);
-        } else if (a->type == BOOLEAN) {
+        } else if (a->type == ATOM_TYPE_BOOLEAN) {
             if (a->number_value)
                 printf("#t");
             else
                 printf("#f");
-        } else if (a->type == CHARACTER) {
+        } else if (a->type == ATOM_TYPE_CHARACTER) {
             if (a->character_value == ' ') {
                 printf("#\\space");
             } else if (a->character_value == '\n') {
@@ -29,14 +29,14 @@ print (SExp *exp) {
             } else {
                 printf("#\\%c", a->character_value);
             }
-        } else if (a->type == STRING) {
+        } else if (a->type == ATOM_TYPE_STRING) {
             printf("%s", a->string_value);
         } else {
             printf("ERR: Unable to print invalid sexp");
         }
-    } else if (exp->type == PAIR) {
+    } else if (exp->type == SEXP_TYPE_PAIR) {
         printf("pair???");
-    } else if (exp->type == NIL) {
+    } else if (exp->type == SEXP_TYPE_NIL) {
         printf("()");
     } else {
         printf("ERR: Unable to print invalid sexp");

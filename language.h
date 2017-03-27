@@ -1,10 +1,10 @@
 #define MAX_STRING_SIZE 1024
 
 typedef enum {
-    NUMBER,
-    BOOLEAN,
-    CHARACTER,
-    STRING,
+    ATOM_TYPE_NUMBER,
+    ATOM_TYPE_BOOLEAN,
+    ATOM_TYPE_CHARACTER,
+    ATOM_TYPE_STRING,
 } AtomType;
 
 typedef struct Atom {
@@ -17,9 +17,9 @@ typedef struct Atom {
 } Atom;
 
 typedef enum {
-    ATOM,
-    PAIR,
-    NIL,
+    SEXP_TYPE_ATOM,
+    SEXP_TYPE_PAIR,
+    SEXP_TYPE_NIL,
 } SExpType;
 
 typedef struct SExp {

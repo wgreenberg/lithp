@@ -111,7 +111,7 @@ parse_atom (char *token, size_t token_size, Atom *atom) {
     int is_escaped;
 
     if (is_number(token)) {
-        atom->type = NUMBER;
+        atom->type = ATOM_TYPE_NUMBER;
         atom->number_value = strtol(token, NULL, 0);
         return 0;
     } else if (token[0] == '#') {
@@ -125,7 +125,7 @@ parse_atom (char *token, size_t token_size, Atom *atom) {
                 return 1;
             }
             token_size = strlen(token);
-            atom->type = CHARACTER;
+            atom->type = ATOM_TYPE_CHARACTER;
             if (token_size == 1) {
                 atom->character_value = token[0];
                 return 0;
@@ -140,13 +140,13 @@ parse_atom (char *token, size_t token_size, Atom *atom) {
             }
         } else if (token_size == 2) {
             if (token[1] == 't' || token[1] == 'f') {
-                atom->type = BOOLEAN;
+                atom->type = ATOM_TYPE_BOOLEAN;
                 atom->number_value = (token[1] == 't');
                 return 0;
             }
         }
     } else if (token[0] == '"') {
-        atom->type = STRING;
+        atom->type = ATOM_TYPE_STRING;
 
         string_buf_idx = 0;
         string_terminated = 0;
@@ -220,16 +220,16 @@ parse_sexp (char *token, size_t token_size, SExp *exp) {
             return 1;
         token_size = strlen(token);
         if (token[0] == ')') {
-            exp->type = NIL;
+            exp->type = SEXP_TYPE_NIL;
             return 0;
         } else if (parse_pair(token, token_size, pair) == 0) {
-            exp->type = PAIR;
+            exp->type = SEXP_TYPE_PAIR;
             exp->pair = pair;
             free(atom);
             return 0;
         }
     } else if (parse_atom(token, token_size, atom) == 0) {
-        exp->type = ATOM;
+        exp->type = SEXP_TYPE_ATOM;
         exp->atom = atom;
         free(pair);
         return 0;
