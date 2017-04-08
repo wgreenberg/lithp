@@ -388,6 +388,10 @@ int is_definition (SExp *exp) { return is_tagged_list(exp, "define"); }
 SExp * definition_variable (SExp *exp) { return cadr(exp); }
 SExp * definition_value (SExp *exp) { return caddr(exp); }
 
+int is_primitive_procedure (SExp *exp) {
+    return is_tagged_list(exp, "list");
+}
+
 SExp *
 cons (SExp *car, SExp *cdr) {
     SExp *ret = new_sexp();
@@ -397,6 +401,33 @@ cons (SExp *car, SExp *cdr) {
     ret->pair->car = car;
     ret->pair->cdr = cdr;
     return ret;
+}
+
+int
+length (SExp *list) {
+    if (is_nil(list)) {
+        return 0;
+    }
+    return 1 + length(cdr(list));
+}
+
+SExp *
+apply_primitive_procedure (SExp *exp) {
+    SExp *ret;
+    if (is_tagged_list(exp, "list")) {
+        if (!is_pair(cadr(exp))) {
+            printf("ERR: list must be applied to a pair\n");
+            return &NIL;
+        }
+        ret = new_sexp();
+        ret->type = SEXP_TYPE_ATOM;
+        ret->atom = new_atom();
+        ret->atom->type = ATOM_TYPE_NUMBER;
+        ret->atom->number_value = length(cadr(exp));
+        return ret;
+    }
+    printf("ERR: couldn't find primitive procedure\n");
+    return &NIL;
 }
 
 SExp *
@@ -439,6 +470,7 @@ eval (SExp *exp, SExp *env) {
          ((definition? exp) (eval-definition exp env))
     */
     if (is_self_evaluating(exp)) return exp;
+    if (is_primitive_procedure(exp)) return apply_primitive_procedure(exp);
     if (is_variable(exp)) return lookup_variable_value(exp, env);
     if (is_quoted(exp)) return exp; // what's text-of-quotation
     if (is_assignment(exp)) return eval_assignment(exp, env);
