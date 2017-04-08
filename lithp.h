@@ -38,10 +38,15 @@ typedef struct Pair {
 } Pair;
 
 SExp NIL = { SEXP_TYPE_NIL };
+Atom _true_atom = { ATOM_TYPE_BOOLEAN, { 1 } };
+SExp TRUE = { SEXP_TYPE_ATOM, 0, { &_true_atom } };
+Atom _false_atom = { ATOM_TYPE_BOOLEAN, { 0 } };
+SExp FALSE = { SEXP_TYPE_ATOM, 0, { &_false_atom } };
 
 SExp * new_sexp ();
 Pair * new_pair ();
 Atom * new_atom ();
+SExp * new_symbol (const char* symbol_string);
 SExp * car (SExp *exp);
 SExp * cdr (SExp *exp);
 
@@ -88,3 +93,6 @@ int parser__parse_pair (char *token, size_t token_size, Pair *pair);
 int parser__parse_sexp (char *token, size_t token_size, SExp *exp);
 
 // EVAL
+SExp * eval (SExp *exp, SExp *env);
+
+void print (SExp *exp);

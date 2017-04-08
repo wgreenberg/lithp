@@ -358,12 +358,38 @@ SExp * new_sexp () { return (SExp*)(malloc(sizeof(SExp))); }
 Atom * new_atom () { return (Atom*)(malloc(sizeof(Atom))); }
 Pair * new_pair () { return (Pair*)(malloc(sizeof(Pair))); }
 
+SExp *
+new_symbol (const char* symbol_string) {
+    SExp *ret = new_sexp();
+    ret->type = SEXP_TYPE_ATOM;
+    ret->atom = new_atom();
+    ret->atom->type = ATOM_TYPE_SYMBOL;
+    strcpy(ret->atom->string_value, symbol_string);
+    return ret;
+}
+
 int is_atom (SExp *exp) { return (exp->type == SEXP_TYPE_ATOM); }
 int is_pair (SExp *exp) { return (exp->type == SEXP_TYPE_PAIR); }
 int is_nil (SExp *exp) { return (exp->type == SEXP_TYPE_NIL); }
 
-SExp * car (SExp *exp) { return is_pair(exp) ? exp->pair->car : &NIL; }
-SExp * cdr (SExp *exp) { return is_pair(exp) ? exp->pair->cdr : &NIL; }
+SExp * car (SExp *exp) {
+    if (!is_pair(exp)) {
+        printf("Tried to apply car to non-pair: ");
+        print(exp);
+        printf("\n");
+        exit(1);
+    }
+    return exp->pair->car;
+}
+SExp * cdr (SExp *exp) {
+    if (!is_pair(exp)) {
+        printf("Tried to apply cdr to non-pair: ");
+        print(exp);
+        printf("\n");
+        exit(1);
+    }
+    return exp->pair->cdr;
+}
 
 int is_number (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_NUMBER); }
 int is_string (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_STRING); }
@@ -430,14 +456,64 @@ apply_primitive_procedure (SExp *exp) {
     return &NIL;
 }
 
-SExp *
-lookup_variable_value (SExp *var, SExp *env) {
-    return &NIL;
+SExp * enclosing_environment (SExp *env) { return cdr(env); }
+SExp * first_frame (SExp *env) { return car(env); }
+
+int
+is_eq (SExp *a, SExp *b) {
+    return a == b;
+}
+
+void
+add_binding_to_frame (SExp *var, SExp *val, SExp *frame) {
+    frame->pair->car = cons(var, car(frame));
+    frame->pair->cdr = cons(val, cdr(frame));
 }
 
 SExp *
-extend_environment (SExp *variables, SExp *values, SExp *base_env) {
-    return &NIL;
+lookup_variable_in_frame (SExp *var, SExp *frame_vars, SExp *frame_vals) {
+    if (is_nil(frame_vars)) {
+        return NULL;
+    }
+    printf("is_eq ");
+    print(var);
+    printf(" ");
+    print(car(frame_vars));
+    printf("\n");
+    if (is_eq(var, car(frame_vars))) {
+        return car(frame_vals);
+    } else {
+        return lookup_variable_in_frame(var, cdr(frame_vars), cdr(frame_vals));
+    }
+}
+
+SExp *
+lookup_variable_value (SExp *var, SExp *env) {
+    if (is_nil(env)) {
+        printf("Unbound variable: ");
+        print(var);
+        printf("\n");
+        return NULL;
+    }
+    SExp *frame = first_frame(env);
+    SExp *val = lookup_variable_in_frame(var, car(frame), cdr(frame));
+    if (val == NULL) {
+        return lookup_variable_value(var, enclosing_environment(env));
+    }
+    return val;
+}
+
+SExp *
+extend_environment (SExp *vars, SExp *vals, SExp *base_env) {
+    if (length(vars) != length(vals)) {
+        printf("Variables and values must be equal in length: \n");
+        print(vars);
+        printf("\n");
+        print(vals);
+        printf("\n");
+        return &NIL;
+    }
+    return cons(cons(vars, vals), base_env);
 }
 
 void
@@ -522,12 +598,66 @@ print (SExp *exp) {
     }
 }
 
+SExp *
+initialize_global_env () {
+    SExp *global_vars, *global_vals;
+
+    global_vars = cons(new_symbol("true"), cons(new_symbol("false"), &NIL));
+    global_vals = cons(&TRUE, cons(&FALSE, &NIL));
+
+    return extend_environment(global_vars, global_vals, &NIL);
+}
+
+SExp *
+initialize_symbol_table (SExp *env) {
+    return caar(env);
+}
+
+SExp *
+find_symbol_match (SExp *symbol, SExp *symbol_table) {
+    if (is_nil(symbol_table))
+        return NULL;
+    if (strcmp(symbol->atom->string_value, car(symbol_table)->atom->string_value) == 0)
+        return car(symbol_table);
+    return find_symbol_match(symbol, cdr(symbol_table));
+}
+
+// Build a list of the unique symbols present in a given expression
+SExp *
+build_symbol_table (SExp *exp, SExp *symbol_table) {
+    if (is_symbol(exp)) {
+        SExp *existing_symbol = find_symbol_match(exp, symbol_table);
+        if (existing_symbol == NULL) {
+            return cons(exp, symbol_table);
+        }
+    } else if (is_pair(exp)) {
+        symbol_table = build_symbol_table(car(exp), symbol_table);
+        return build_symbol_table(cdr(exp), symbol_table);
+    }
+    return symbol_table;
+}
+
+// Deduplicates any unique symbol pointers from the expression tree
+SExp *
+prune_symbols (SExp *exp, SExp *symbol_table) {
+    if (is_symbol(exp)) {
+        SExp *existing_symbol = find_symbol_match(exp, symbol_table);
+        if (existing_symbol != NULL) {
+            return existing_symbol;
+        }
+    } else if (is_pair(exp)) {
+        return cons(prune_symbols(car(exp), symbol_table), prune_symbols(cdr(exp), symbol_table));
+    }
+    return exp;
+}
+
 int main (void) {
     printf("Welcome to Lithp\n");
     size_t buf_size = 1024;
     char *buf = malloc(buf_size);
 
-    SExp *global_env = &NIL;
+    SExp *global_env = initialize_global_env();
+    SExp *symbol_table = initialize_symbol_table(global_env);
     while (1) {
         // read
         printf("> ");
@@ -544,6 +674,8 @@ int main (void) {
             SExp *program = parser__parse_program(buf);
             if (program == NULL)
                 continue;
+            symbol_table = build_symbol_table(program, symbol_table);
+            program = prune_symbols(program, symbol_table);
             SExp *result = eval(program, global_env);
             if (result == NULL)
                 continue;
