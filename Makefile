@@ -1,13 +1,11 @@
-HEADERS = language.h parse.h
-OBJ = parse.o main.o
 CFLAGS = -Wall
 
 .PHONY: clean
 
-%.o: %.c $(HEADERS)
+lithp.o: lithp.c lithp.h
 	gcc -ggdb -c -o $@ $< $(CFLAGS)
 
-lithp: $(OBJ)
+lithp: lithp.o
 	gcc -ggdb -o $@ $^ $(CFLAGS)
 
 clean:
