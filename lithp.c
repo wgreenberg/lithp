@@ -229,7 +229,7 @@ parser__parse_atom (char *token, size_t token_size, Atom *atom) {
 int
 parser__parse_pair (char *token, size_t token_size, Pair *pair) {
     // parse car
-    pair->car = (SExp*)(malloc(sizeof(SExp)));
+    pair->car = new_sexp();
     if (parser__parse_sexp(token, token_size, pair->car)) {
         return 1;
     }
@@ -237,7 +237,7 @@ parser__parse_pair (char *token, size_t token_size, Pair *pair) {
     consume_whitespace();
 
     // handle NIL cdr
-    pair->cdr = (SExp*)(malloc(sizeof(SExp)));
+    pair->cdr = new_sexp();
     token = peek_next_token();
     if (token == NULL) {
         return 1;
@@ -249,7 +249,7 @@ parser__parse_pair (char *token, size_t token_size, Pair *pair) {
     // parse cdr
     token = next_token();
     token_size = strlen(token);
-    pair->cdr->pair = (Pair*)(malloc(sizeof(Pair)));
+    pair->cdr->pair = new_pair();
     pair->cdr->type = SEXP_TYPE_PAIR;
     if (parser__parse_pair(token, token_size, pair->cdr->pair)) {
         return 1;
@@ -287,7 +287,7 @@ parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
             return 0;
         }
 
-        Pair *pair = (Pair*)(malloc(sizeof(Pair)));
+        Pair *pair = new_pair();
         if (parser__parse_pair(token, token_size, pair) == 0) {
             token = next_token();
             if (token == NULL || token[0] != ')') {
@@ -303,7 +303,7 @@ parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
         return 1;
     }
 
-    Atom *atom = (Atom*)(malloc(sizeof(Atom)));
+    Atom *atom = new_atom();
     if (parser__parse_atom(token, token_size, atom) == 0) {
         exp->type = SEXP_TYPE_ATOM;
         exp->atom = atom;
@@ -354,6 +354,10 @@ parser__parse_program (char *program_txt) {
 // EVALUATOR
 // These functions are largely modeled after SICP's metacircular evaluator
 
+SExp * new_sexp () { return (SExp*)(malloc(sizeof(SExp))); }
+Atom * new_atom () { return (Atom*)(malloc(sizeof(Atom))); }
+Pair * new_pair () { return (Pair*)(malloc(sizeof(Pair))); }
+
 int is_atom (SExp *exp) { return (exp->type == SEXP_TYPE_ATOM); }
 int is_pair (SExp *exp) { return (exp->type == SEXP_TYPE_PAIR); }
 int is_nil (SExp *exp) { return (exp->type == SEXP_TYPE_NIL); }
@@ -384,9 +388,10 @@ int is_definition (SExp *exp) { return is_tagged_list(exp, "define"); }
 SExp * definition_variable (SExp *exp) { return cadr(exp); }
 SExp * definition_value (SExp *exp) { return caddr(exp); }
 
-SExp * cons (SExp *car, SExp *cdr) {
-    SExp *ret = (SExp*)(malloc(sizeof(SExp)));
-    Pair *pair = (Pair*)(malloc(sizeof(Pair)));
+SExp *
+cons (SExp *car, SExp *cdr) {
+    SExp *ret = new_sexp();
+    Pair *pair = new_pair();
     ret->type = SEXP_TYPE_PAIR;
     ret->pair = pair;
     ret->pair->car = car;

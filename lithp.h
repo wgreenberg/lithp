@@ -39,6 +39,9 @@ typedef struct Pair {
 
 SExp NIL = { SEXP_TYPE_NIL };
 
+SExp * new_sexp ();
+Pair * new_pair ();
+Atom * new_atom ();
 SExp * car (SExp *exp);
 SExp * cdr (SExp *exp);
 
