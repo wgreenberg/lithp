@@ -7,10 +7,10 @@
 
 #include "lithp.h"
 
-// PARSE
+// PARSER
 
 int
-is_symbol_token (char *token, size_t token_size) {
+parser__is_symbol_token (char *token, size_t token_size) {
     regex_t re;
     int ret;
     ret = regcomp(&re, "[_a-zA-Z!0&*/:<=>?^][_a-zA-Z!0&*/:<=>?^0-9.+-]*", REG_EXTENDED|REG_NOSUB);
@@ -25,14 +25,14 @@ is_symbol_token (char *token, size_t token_size) {
 }
 
 int
-is_number_token (char *token) {
+parser__is_number_token (char *token) {
     char *endptr;
     strtol(token, &endptr, 0);
     return (*endptr == 0);
 }
 
 char
-to_character (char *token, size_t token_size) {
+parser__token_to_character (char *token, size_t token_size) {
     if (token_size == 3) {
         return token[2];
     } else {
@@ -46,7 +46,7 @@ to_character (char *token, size_t token_size) {
 }
 
 int
-is_nil_token (char *token, size_t token_size) {
+parser__is_nil_token (char *token, size_t token_size) {
     if (token_size == 2) {
         return token[0] == '(' && token[1] == ')';
     }
@@ -127,18 +127,20 @@ consume_whitespace () {
 }
 
 int
-parse_atom (char *token, size_t token_size, Atom *atom) {
+parser__parse_atom (char *token, size_t token_size, Atom *atom) {
     int string_buf_idx;
     int token_buf_idx;
     int string_terminated;
     int token_buf_start;
     int is_escaped;
 
-    if (is_number_token(token)) {
+    if (parser__is_number_token(token)) {
         atom->type = ATOM_TYPE_NUMBER;
         atom->number_value = strtol(token, NULL, 0);
         return 0;
     } else if (token[0] == '#') {
+        // If we've only got the # token, the next character must be an escaped
+        // sequence. Otherwise, assume it's either #t or #f
         if (token_size == 1) {
             token = next_token();
             if (token == NULL || token[0] != '\\') {
@@ -171,7 +173,6 @@ parse_atom (char *token, size_t token_size, Atom *atom) {
         }
     } else if (token[0] == '"') {
         atom->type = ATOM_TYPE_STRING;
-
         string_buf_idx = 0;
         string_terminated = 0;
         is_escaped = 0;
@@ -216,7 +217,7 @@ parse_atom (char *token, size_t token_size, Atom *atom) {
         }
         return 0;
     } else {
-        if (is_symbol_token(token, token_size)) {
+        if (parser__is_symbol_token(token, token_size)) {
             atom->type = ATOM_TYPE_SYMBOL;
             strncpy(atom->string_value, token, token_size);
             return 0;
@@ -226,10 +227,10 @@ parse_atom (char *token, size_t token_size, Atom *atom) {
 }
 
 int
-parse_pair (char *token, size_t token_size, Pair *pair) {
+parser__parse_pair (char *token, size_t token_size, Pair *pair) {
     // parse car
     pair->car = (SExp*)(malloc(sizeof(SExp)));
-    if (parse_sexp(token, token_size, pair->car)) {
+    if (parser__parse_sexp(token, token_size, pair->car)) {
         return 1;
     }
 
@@ -250,7 +251,7 @@ parse_pair (char *token, size_t token_size, Pair *pair) {
     token_size = strlen(token);
     pair->cdr->pair = (Pair*)(malloc(sizeof(Pair)));
     pair->cdr->type = SEXP_TYPE_PAIR;
-    if (parse_pair(token, token_size, pair->cdr->pair)) {
+    if (parser__parse_pair(token, token_size, pair->cdr->pair)) {
         return 1;
     } else {
         return 0;
@@ -258,7 +259,7 @@ parse_pair (char *token, size_t token_size, Pair *pair) {
 }
 
 int
-parse_sexp (char *token, size_t token_size, SExp *exp) {
+parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
     if (token[0] == '\'') {
         if (token == NULL || exp->is_quoted == 1)
             return 1;
@@ -272,7 +273,7 @@ parse_sexp (char *token, size_t token_size, SExp *exp) {
             token_size--;
         }
         exp->is_quoted = 1;
-        return parse_sexp(token, token_size, exp);
+        return parser__parse_sexp(token, token_size, exp);
     } 
 
     if (token[0] == '(') {
@@ -287,7 +288,7 @@ parse_sexp (char *token, size_t token_size, SExp *exp) {
         }
 
         Pair *pair = (Pair*)(malloc(sizeof(Pair)));
-        if (parse_pair(token, token_size, pair) == 0) {
+        if (parser__parse_pair(token, token_size, pair) == 0) {
             token = next_token();
             if (token == NULL || token[0] != ')') {
                 printf("Unclosed parenthesis\n");
@@ -303,7 +304,7 @@ parse_sexp (char *token, size_t token_size, SExp *exp) {
     }
 
     Atom *atom = (Atom*)(malloc(sizeof(Atom)));
-    if (parse_atom(token, token_size, atom) == 0) {
+    if (parser__parse_atom(token, token_size, atom) == 0) {
         exp->type = SEXP_TYPE_ATOM;
         exp->atom = atom;
         return 0;
@@ -314,7 +315,7 @@ parse_sexp (char *token, size_t token_size, SExp *exp) {
 }
 
 SExp *
-parse_program (char *program_txt) {
+parser__parse_program (char *program_txt) {
     char *token;
     size_t token_size;
     SExp *program;
@@ -338,7 +339,7 @@ parse_program (char *program_txt) {
         token_size = strlen(token);
         curr_exp = (SExp){0};
 
-        if (!parse_sexp(token, token_size, &curr_exp)) {
+        if (!parser__parse_sexp(token, token_size, &curr_exp)) {
             program[program_idx++] = curr_exp;
         } else {
             printf("Unknown token %s\n", token);
@@ -350,42 +351,15 @@ parse_program (char *program_txt) {
     return program;
 }
 
-// EVAL
+// EVALUATOR
+// These functions are largely modeled after SICP's metacircular evaluator
 
 int is_atom (SExp *exp) { return (exp->type == SEXP_TYPE_ATOM); }
 int is_pair (SExp *exp) { return (exp->type == SEXP_TYPE_PAIR); }
 int is_nil (SExp *exp) { return (exp->type == SEXP_TYPE_NIL); }
 
-SExp * car (SExp *exp) { return is_pair(exp) ? exp->pair->car : NULL; }
-SExp * cdr (SExp *exp) { return is_pair(exp) ? exp->pair->cdr : NULL; }
-#define caar(obj)   car(car(obj))
-#define cadr(obj)   car(cdr(obj))
-#define cdar(obj)   cdr(car(obj))
-#define cddr(obj)   cdr(cdr(obj))
-#define caaar(obj)  car(car(car(obj)))
-#define caadr(obj)  car(car(cdr(obj)))
-#define cadar(obj)  car(cdr(car(obj)))
-#define caddr(obj)  car(cdr(cdr(obj)))
-#define cdaar(obj)  cdr(car(car(obj)))
-#define cdadr(obj)  cdr(car(cdr(obj)))
-#define cddar(obj)  cdr(cdr(car(obj)))
-#define cdddr(obj)  cdr(cdr(cdr(obj)))
-#define caaaar(obj) car(car(car(car(obj))))
-#define caaadr(obj) car(car(car(cdr(obj))))
-#define caadar(obj) car(car(cdr(car(obj))))
-#define caaddr(obj) car(car(cdr(cdr(obj))))
-#define cadaar(obj) car(cdr(car(car(obj))))
-#define cadadr(obj) car(cdr(car(cdr(obj))))
-#define caddar(obj) car(cdr(cdr(car(obj))))
-#define cadddr(obj) car(cdr(cdr(cdr(obj))))
-#define cdaaar(obj) cdr(car(car(car(obj))))
-#define cdaadr(obj) cdr(car(car(cdr(obj))))
-#define cdadar(obj) cdr(car(cdr(car(obj))))
-#define cdaddr(obj) cdr(car(cdr(cdr(obj))))
-#define cddaar(obj) cdr(cdr(car(car(obj))))
-#define cddadr(obj) cdr(cdr(car(cdr(obj))))
-#define cdddar(obj) cdr(cdr(cdr(car(obj))))
-#define cddddr(obj) cdr(cdr(cdr(cdr(obj))))
+SExp * car (SExp *exp) { return is_pair(exp) ? exp->pair->car : &NIL; }
+SExp * cdr (SExp *exp) { return is_pair(exp) ? exp->pair->cdr : &NIL; }
 
 int is_number (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_NUMBER); }
 int is_string (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_STRING); }
@@ -421,7 +395,12 @@ SExp * cons (SExp *car, SExp *cdr) {
 }
 
 SExp *
-lookup_variable_value (SExp *exp, SExp *env) {
+lookup_variable_value (SExp *var, SExp *env) {
+    return &NIL;
+}
+
+SExp *
+extend_environment (SExp *variables, SExp *values, SExp *base_env) {
     return &NIL;
 }
 
@@ -459,7 +438,7 @@ eval (SExp *exp, SExp *env) {
     if (is_quoted(exp)) return exp; // what's text-of-quotation
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
-    return NULL;
+    return &NIL;
 }
 
 // MAIN
@@ -525,7 +504,7 @@ int main (void) {
             }
         } else {
             // evaluate
-            SExp *program = parse_program(buf);
+            SExp *program = parser__parse_program(buf);
             if (program == NULL)
                 continue;
             SExp *result = eval(program, global_env);
