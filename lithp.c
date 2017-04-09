@@ -435,6 +435,8 @@ int is_lambda (SExp *exp) { return is_tagged_list(exp, "lambda"); }
 int is_begin (SExp *exp) { return is_tagged_list(exp, "begin"); }
 int is_cond (SExp *exp) { return is_tagged_list(exp, "cond"); }
 int is_let (SExp *exp) { return is_tagged_list(exp, "let"); }
+int is_and (SExp *exp) { return is_tagged_list(exp, "and"); }
+int is_or (SExp *exp) { return is_tagged_list(exp, "or"); }
 
 SExp * car (SExp *exp) {
     if (!is_pair(exp)) {
@@ -843,6 +845,15 @@ sequence_to_exp (SExp *seq) {
 }
 
 SExp *
+make_if (SExp *predicate, SExp *consequent, SExp *alternative) {
+    if (alternative == NULL) {
+        return cons(new_symbol("if"), cons(predicate, cons(consequent, &NIL)));
+    } else {
+        return cons(new_symbol("if"), cons(predicate, cons(consequent, cons(alternative, &NIL))));
+    }
+}
+
+SExp *
 expand_clauses (SExp *clauses) {
     if (is_nil(clauses))
         return &FALSE;
@@ -859,7 +870,7 @@ expand_clauses (SExp *clauses) {
         SExp *predicate = car(first);
         SExp *consequent = sequence_to_exp(cdr(first));
         SExp *alternative = expand_clauses(rest);
-        return cons(new_symbol("if"), cons(predicate, cons(consequent, cons(alternative, &NIL))));
+        return make_if(predicate, consequent, alternative);
     }
 }
 
@@ -892,6 +903,38 @@ let_to_lambda (SExp *exp) {
     return cons(lambda_exp, let_vals);
 }
 
+// (and a b c) => (if a (if b (if c c)))
+SExp *
+and_to_if (SExp *exp) {
+    if (is_nil(exp))
+        return &TRUE;
+    SExp *first = car(exp);
+    SExp *rest = cdr(exp);
+    if (is_nil(rest)) {
+        return make_if(first, first, NULL);
+    } else {
+        return make_if(first, and_to_if(rest), NULL);
+    }
+}
+
+// (or a b c) => (if a a (if b b (if c c)))
+SExp *
+or_to_if (SExp *exp) {
+    if (is_nil(exp))
+        return &FALSE;
+    SExp *first = car(exp);
+    SExp *rest = cdr(exp);
+    return make_if(first, first, or_to_if(rest));
+}
+
+SExp *
+bool_to_if (SExp *exp) {
+    if (is_and(exp))
+        return and_to_if(cdr(exp));
+    else
+        return or_to_if(cdr(exp));
+}
+
 SExp *
 apply (SExp *procedure, SExp *arguments) {
     if (is_primitive_procedure(procedure)) {
@@ -916,6 +959,7 @@ eval (SExp *exp, SExp *env) {
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
     if (is_if(exp)) return eval_if(exp, env);
+    if (is_and(exp) || is_or(exp)) return eval(bool_to_if(exp), env);
     if (is_lambda(exp)) return make_procedure(exp, env);
     if (is_let(exp)) return eval(let_to_lambda(exp), env);
     if (is_begin(exp)) return eval_sequence(cdr(exp), env);
