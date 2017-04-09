@@ -476,11 +476,6 @@ lookup_variable_in_frame (SExp *var, SExp *frame_vars, SExp *frame_vals) {
     if (is_nil(frame_vars)) {
         return NULL;
     }
-    printf("is_eq ");
-    print(var);
-    printf(" ");
-    print(car(frame_vars));
-    printf("\n");
     if (is_eq(var, car(frame_vars))) {
         return car(frame_vals);
     } else {
