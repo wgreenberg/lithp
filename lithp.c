@@ -355,9 +355,20 @@ parser__parse_program (char *program_txt) {
 // EVALUATOR
 // These functions are largely modeled after SICP's metacircular evaluator
 
-SExp * new_sexp () { return (SExp*)(malloc(sizeof(SExp))); }
-Atom * new_atom () { return (Atom*)(malloc(sizeof(Atom))); }
-Pair * new_pair () { return (Pair*)(malloc(sizeof(Pair))); }
+SExp *
+new_sexp () {
+    return (SExp*)(malloc(sizeof(SExp)));
+}
+
+Atom *
+new_atom () {
+    return (Atom*)(malloc(sizeof(Atom)));
+}
+
+Pair *
+new_pair () {
+    return (Pair*)(malloc(sizeof(Pair)));
+}
 
 SExp *
 new_symbol (const char* symbol_string) {
@@ -395,6 +406,34 @@ new_primitive_proc (Proc proc) {
 int is_atom (SExp *exp) { return (exp->type == SEXP_TYPE_ATOM); }
 int is_pair (SExp *exp) { return (exp->type == SEXP_TYPE_PAIR); }
 int is_nil (SExp *exp) { return (exp->type == SEXP_TYPE_NIL); }
+int is_number (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_NUMBER); }
+int is_string (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_STRING); }
+int is_symbol (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_SYMBOL); }
+int is_boolean (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_BOOLEAN); }
+int is_character (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_CHARACTER); }
+int is_self_evaluating (SExp *exp) { return is_number(exp) || is_string(exp) || is_boolean(exp); }
+int is_tagged_list (SExp *exp, const char *tag) {
+    return is_pair(exp)
+        && is_symbol(exp->pair->car)
+        && (strcmp(tag, exp->pair->car->atom->string_value) == 0);
+}
+int is_quoted (SExp *exp) { return is_tagged_list(exp, "quote"); }
+int is_variable (SExp *exp) { return is_symbol(exp) && !is_quoted(exp); }
+int is_assignment (SExp *exp) { return is_tagged_list(exp, "set!"); }
+int is_definition (SExp *exp) { return is_tagged_list(exp, "define"); }
+
+// I think this is actually wrong, since in SICP it's implied that the only
+// false value is the singleton FALSE expression
+int is_false (SExp *exp) { return is_boolean(exp) && exp->atom->number_value == 0; }
+int is_true (SExp *exp) { return !is_false(exp); }
+
+int is_if (SExp *exp) { return is_tagged_list(exp, "if"); }
+int is_application (SExp *exp) { return is_pair(exp); }
+int is_primitive_procedure (SExp *exp) { return exp->type == SEXP_TYPE_PRIMITIVE_PROC; }
+int is_compound_procedure (SExp *exp) { return is_tagged_list(exp, "procedure"); }
+int is_lambda (SExp *exp) { return is_tagged_list(exp, "lambda"); }
+int is_begin (SExp *exp) { return is_tagged_list(exp, "begin"); }
+int is_cond (SExp *exp) { return is_tagged_list(exp, "cond"); }
 
 SExp * car (SExp *exp) {
     if (!is_pair(exp)) {
@@ -405,6 +444,7 @@ SExp * car (SExp *exp) {
     }
     return exp->pair->car;
 }
+
 SExp * cdr (SExp *exp) {
     if (!is_pair(exp)) {
         printf("Tried to apply cdr to non-pair: ");
@@ -415,65 +455,11 @@ SExp * cdr (SExp *exp) {
     return exp->pair->cdr;
 }
 
-int is_number (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_NUMBER); }
-int is_string (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_STRING); }
-int is_symbol (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_SYMBOL); }
-int is_boolean (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_BOOLEAN); }
-int is_character (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_CHARACTER); }
-
-int is_self_evaluating (SExp *exp) { return is_number(exp) || is_string(exp) || is_boolean(exp); }
-
-int is_tagged_list (SExp *exp, const char *tag) {
-    return is_pair(exp)
-        && is_symbol(exp->pair->car)
-        && (strcmp(tag, exp->pair->car->atom->string_value) == 0);
-}
-int is_quoted (SExp *exp) { return is_tagged_list(exp, "quote"); }
-int is_variable (SExp *exp) { return is_symbol(exp) && !is_quoted(exp); }
-
-int is_assignment (SExp *exp) { return is_tagged_list(exp, "set!"); }
-SExp * assignment_variable (SExp *exp) { return cadr(exp); }
-SExp * assignment_value (SExp *exp) { return caddr(exp); }
-
-int is_definition (SExp *exp) { return is_tagged_list(exp, "define"); }
-SExp * definition_variable (SExp *exp) {
-    if (is_symbol(cadr(exp))) {
-        return cadr(exp);
-    } else {
-        return caadr(exp);
-    }
-}
-SExp * definition_value (SExp *exp) {
-    if (is_symbol(cadr(exp))) {
-        return caddr(exp);
-    } else {
-        SExp *params = cdadr(exp);
-        SExp *body = cddr(exp);
-        SExp *lambda_body = cons(params, body);
-        return cons(new_symbol("lambda"), lambda_body);
-    }
-}
-
-// I think this is actually wrong, since in SICP it's implied that the only
-// false value is the singleton FALSE expression
-int is_false (SExp *exp) { return is_boolean(exp) && exp->atom->number_value == 0; }
-int is_true (SExp *exp) { return !is_false(exp); }
-int is_if (SExp *exp) { return is_tagged_list(exp, "if"); }
-
-int is_application (SExp *exp) { return is_pair(exp); }
-SExp * operator (SExp *exp) { return car(exp); }
-SExp * operands (SExp *exp) { return cdr(exp); }
-
-int is_primitive_procedure (SExp *exp) { return exp->type == SEXP_TYPE_PRIMITIVE_PROC; }
-int is_compount_procedure (SExp *exp) { return is_tagged_list(exp, "procedure"); }
-int is_lambda (SExp *exp) { return is_tagged_list(exp, "lambda"); }
-
 SExp *
 cons (SExp *car, SExp *cdr) {
     SExp *ret = new_sexp();
-    Pair *pair = new_pair();
     ret->type = SEXP_TYPE_PAIR;
-    ret->pair = pair;
+    ret->pair = new_pair();
     ret->pair->car = car;
     ret->pair->cdr = cdr;
     return ret;
@@ -567,6 +553,7 @@ long int gte_comparator (long int a, long int b) { return a >= b; }
 SExp * gte_proc (SExp *args) { return num_comparator_proc(args, gte_comparator); }
 
 typedef int (*type_predicate) (SExp* exp);
+
 SExp *
 type_wrapper(type_predicate fn, SExp *arguments) {
     if (length(arguments) != 1) {
@@ -575,6 +562,7 @@ type_wrapper(type_predicate fn, SExp *arguments) {
     }
     return new_boolean(fn(car(arguments)));
 }
+
 SExp *nil_proc (SExp *args) { return type_wrapper(is_nil, args); }
 SExp *boolean_proc (SExp *args) { return type_wrapper(is_boolean, args); }
 SExp *symbol_proc (SExp *args) { return type_wrapper(is_symbol, args); }
@@ -686,9 +674,6 @@ apply_primitive_procedure (SExp *procedure, SExp *arguments) {
     return (procedure->proc)(arguments);
 }
 
-SExp * enclosing_environment (SExp *env) { return cdr(env); }
-SExp * first_frame (SExp *env) { return car(env); }
-
 int
 is_eq (SExp *a, SExp *b) {
     return a == b;
@@ -704,7 +689,7 @@ SExp *
 lookup_variable_value (SExp *var, SExp *env) {
     SExp *frame, *frame_vars, *frame_vals;
     while (!is_nil(env)) {
-        frame = first_frame(env);
+        frame = car(env);
         frame_vars = car(frame);
         frame_vals = cdr(frame);
         while (!is_nil(frame_vars)) {
@@ -714,7 +699,7 @@ lookup_variable_value (SExp *var, SExp *env) {
             frame_vars = cdr(frame_vars);
             frame_vals = cdr(frame_vals);
         }
-        env = enclosing_environment(env);
+        env = cdr(env);
     }
     printf("Unbound variable: ");
     print(var);
@@ -739,7 +724,7 @@ void
 set_variable (SExp *var, SExp *val, SExp *env) {
     SExp *frame, *frame_vars, *frame_vals;
     while (!is_nil(env)) {
-        frame = first_frame(env);
+        frame = car(env);
         frame_vars = car(frame);
         frame_vals = cdr(frame);
         while (!is_nil(frame_vars)) {
@@ -750,7 +735,7 @@ set_variable (SExp *var, SExp *val, SExp *env) {
             frame_vars = cdr(frame_vars);
             frame_vals = cdr(frame_vals);
         }
-        env = enclosing_environment(env);
+        env = cdr(env);
     }
     printf("Unable to set unbound variable ");
     print(var);
@@ -777,8 +762,31 @@ define_variable (SExp *var, SExp *val, SExp *env) {
 
 SExp *
 eval_assignment (SExp *exp, SExp *env) {
-    set_variable(assignment_variable(exp), eval(assignment_value(exp), env), env);
+    SExp *variable = cadr(exp);
+    SExp *value = caddr(exp);
+    set_variable(variable, eval(value, env), env);
     return new_symbol("ok");
+}
+
+SExp *
+definition_variable (SExp *exp) {
+    if (is_symbol(cadr(exp))) {
+        return cadr(exp);
+    } else {
+        return caadr(exp);
+    }
+}
+
+SExp *
+definition_value (SExp *exp) {
+    if (is_symbol(cadr(exp))) {
+        return caddr(exp);
+    } else {
+        SExp *params = cdadr(exp);
+        SExp *body = cddr(exp);
+        SExp *lambda_body = cons(params, body);
+        return cons(new_symbol("lambda"), lambda_body);
+    }
 }
 
 SExp *
@@ -787,16 +795,15 @@ eval_definition (SExp *exp, SExp *env) {
     return new_symbol("ok");
 }
 
-SExp * if_predicate (SExp *exp) { return cadr(exp); }
-SExp * if_consequent (SExp *exp) { return caddr(exp); }
-SExp * if_alternative (SExp *exp) { return is_nil(cdddr(exp)) ? &FALSE : cadddr(exp); }
-
 SExp *
 eval_if (SExp *exp, SExp *env) {
-    if (is_true(eval(if_predicate(exp), env))) {
-        return eval(if_consequent(exp), env);
+    SExp *predicate = cadr(exp);
+    SExp *consequent = caddr(exp);
+    SExp *alternative = is_nil(cdddr(exp)) ? &FALSE : cadddr(exp);
+    if (is_true(eval(predicate, env))) {
+        return eval(consequent, env);
     } else {
-        return eval(if_alternative(exp), env);
+        return eval(alternative, env);
     }
 }
 
@@ -818,15 +825,53 @@ eval_sequence (SExp *seq, SExp *env) {
     return ret;
 }
 
-SExp * procedure_parameters (SExp *proc) { return cadr(proc); }
-SExp * procedure_body (SExp *proc) { return caddr(proc); }
-SExp * procedure_environment (SExp *proc) { return cadddr(proc); }
+SExp *
+make_procedure (SExp *exp, SExp *env) {
+    SExp *params = cadr(exp);
+    SExp *body = cddr(exp);
+    return cons(new_symbol("procedure"), cons(params, cons(body, cons(env, &NIL))));
+}
+
+SExp *
+sequence_to_exp (SExp *seq) {
+    if (is_nil(seq))
+        return seq;
+    if (is_nil(cdr(seq)))
+        return car(seq);
+    return cons(new_symbol("begin"), seq);
+}
+
+SExp *
+expand_clauses (SExp *clauses) {
+    if (is_nil(clauses))
+        return &FALSE;
+    SExp *first = car(clauses);
+    SExp *rest = cdr(clauses);
+    if (is_tagged_list(first, "else")) {
+        if (is_nil(rest)) {
+            return sequence_to_exp(cdr(first));
+        } else {
+            printf("ERR: else clause isn't last in cond clauses\n");
+            return &NIL;
+        }
+    } else {
+        SExp *predicate = car(first);
+        SExp *consequent = sequence_to_exp(cdr(first));
+        SExp *alternative = expand_clauses(rest);
+        return cons(new_symbol("if"), cons(predicate, cons(consequent, cons(alternative, &NIL))));
+    }
+}
+
+SExp *
+cond_to_if (SExp *exp) {
+    return expand_clauses(cdr(exp));
+}
 
 SExp *
 apply (SExp *procedure, SExp *arguments) {
     if (is_primitive_procedure(procedure)) {
         return apply_primitive_procedure(procedure, arguments);
-    } else if (is_compount_procedure(procedure)) {
+    } else if (is_compound_procedure(procedure)) {
         SExp *params = cadr(procedure);
         SExp *body = caddr(procedure);
         SExp *env = cadddr(procedure);
@@ -839,23 +884,19 @@ apply (SExp *procedure, SExp *arguments) {
 }
 
 SExp *
-make_procedure (SExp *exp, SExp *env) {
-    SExp *params = cadr(exp);
-    SExp *body = cddr(exp);
-    return cons(new_symbol("procedure"), cons(params, cons(body, cons(env, &NIL))));
-}
-
-SExp *
 eval (SExp *exp, SExp *env) {
     if (is_self_evaluating(exp)) return exp;
     if (is_variable(exp)) return lookup_variable_value(exp, env);
     if (is_quoted(exp)) return cadr(exp); // (quote (exp ()))
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
-    if (is_lambda(exp)) return make_procedure(exp, env);
     if (is_if(exp)) return eval_if(exp, env);
-    if (is_application(exp)) return apply(eval(operator(exp), env),
-                                            list_of_values(operands(exp), env));
+    if (is_lambda(exp)) return make_procedure(exp, env);
+    if (is_begin(exp)) return eval_sequence(cdr(exp), env);
+    if (is_cond(exp)) return eval(cond_to_if(exp), env);
+    if (is_application(exp)) return apply(eval(car(exp), env),
+                                          list_of_values(cdr(exp), env));
+    printf("ERR: Unknown expression type\n");
     return &NIL;
 }
 
@@ -863,16 +904,16 @@ eval (SExp *exp, SExp *env) {
 
 void
 print (SExp *exp) {
-    if (exp->type == SEXP_TYPE_ATOM) {
+    if (is_atom(exp)) {
         Atom *a = exp->atom;
-        if (a->type == ATOM_TYPE_NUMBER) {
+        if (is_number(exp)) {
             printf("%ld", a->number_value);
-        } else if (a->type == ATOM_TYPE_BOOLEAN) {
+        } else if (is_boolean(exp)) {
             if (a->number_value)
                 printf("#t");
             else
                 printf("#f");
-        } else if (a->type == ATOM_TYPE_CHARACTER) {
+        } else if (is_character(exp)) {
             if (a->character_value == ' ') {
                 printf("#\\space");
             } else if (a->character_value == '\n') {
@@ -880,22 +921,30 @@ print (SExp *exp) {
             } else {
                 printf("#\\%c", a->character_value);
             }
-        } else if (a->type == ATOM_TYPE_STRING) {
+        } else if (is_string(exp)) {
             printf("\"%s\"", a->string_value);
-        } else if (a->type == ATOM_TYPE_SYMBOL) {
+        } else if (is_symbol(exp)) {
             printf("%s", a->string_value);
         } else {
             printf("ERR: Unable to print invalid sexp");
         }
-    } else if (exp->type == SEXP_TYPE_PAIR) {
+    } else if (is_compound_procedure(exp)) {
+        SExp *params = cadr(exp);
+        SExp *body = caddr(exp);
+        printf("(compound-procedure ");
+        print(params);
+        printf(" ");
+        print(body);
+        printf("'<procedure-env>)");
+    } else if (is_pair(exp)) {
         printf("(");
         print(exp->pair->car);
         printf(" ");
         print(exp->pair->cdr);
         printf(")");
-    } else if (exp->type == SEXP_TYPE_NIL) {
+    } else if (is_nil(exp)) {
         printf("()");
-    } else if (exp->type == SEXP_TYPE_PRIMITIVE_PROC) {
+    } else if (is_primitive_procedure(exp)) {
         printf("#<primitive>");
     } else {
         printf("ERR: Unable to print invalid sexp");
