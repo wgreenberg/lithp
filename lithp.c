@@ -472,31 +472,25 @@ add_binding_to_frame (SExp *var, SExp *val, SExp *frame) {
 }
 
 SExp *
-lookup_variable_in_frame (SExp *var, SExp *frame_vars, SExp *frame_vals) {
-    if (is_nil(frame_vars)) {
-        return NULL;
-    }
-    if (is_eq(var, car(frame_vars))) {
-        return car(frame_vals);
-    } else {
-        return lookup_variable_in_frame(var, cdr(frame_vars), cdr(frame_vals));
-    }
-}
-
-SExp *
 lookup_variable_value (SExp *var, SExp *env) {
-    if (is_nil(env)) {
-        printf("Unbound variable: ");
-        print(var);
-        printf("\n");
-        return NULL;
+    SExp *frame, *frame_vars, *frame_vals;
+    while (!is_nil(env)) {
+        frame = first_frame(env);
+        frame_vars = car(frame);
+        frame_vals = cdr(frame);
+        while (!is_nil(frame_vars)) {
+            if (is_eq(var, car(frame_vars))) {
+                return car(frame_vals);
+            }
+            frame_vars = cdr(frame_vars);
+            frame_vals = cdr(frame_vals);
+        }
+        env = enclosing_environment(env);
     }
-    SExp *frame = first_frame(env);
-    SExp *val = lookup_variable_in_frame(var, car(frame), cdr(frame));
-    if (val == NULL) {
-        return lookup_variable_value(var, enclosing_environment(env));
-    }
-    return val;
+    printf("Unbound variable: ");
+    print(var);
+    printf("\n");
+    return NULL;
 }
 
 SExp *
