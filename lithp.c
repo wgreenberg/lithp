@@ -419,6 +419,7 @@ int is_number (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE
 int is_string (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_STRING); }
 int is_symbol (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_SYMBOL); }
 int is_boolean (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_BOOLEAN); }
+int is_character (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_CHARACTER); }
 
 int is_self_evaluating (SExp *exp) { return is_number(exp) || is_string(exp) || is_boolean(exp); }
 
@@ -503,10 +504,10 @@ num_reducer_proc (SExp *arguments, num_reducer fn, long int init) {
 }
 
 long int add_reducer (long int acc, long int next) { return acc + next; }
-SExp * add_proc (SExp *arguments) { return num_reducer_proc(arguments, add_reducer, 0); }
+SExp * add_proc (SExp *args) { return num_reducer_proc(args, add_reducer, 0); }
 
 long int mult_reducer (long int acc, long int next) { return acc * next; }
-SExp * mult_proc (SExp *arguments) { return num_reducer_proc(arguments, mult_reducer, 1); }
+SExp * mult_proc (SExp *args) { return num_reducer_proc(args, mult_reducer, 1); }
 
 SExp *
 num_comparator_proc (SExp *arguments, num_reducer fn) {
@@ -535,19 +536,134 @@ num_comparator_proc (SExp *arguments, num_reducer fn) {
 }
 
 long int eq_comparator (long int a, long int b) { return a == b; }
-SExp * eq_proc (SExp *arguments) { return num_comparator_proc(arguments, eq_comparator); }
+SExp * num_eq_proc (SExp *args) { return num_comparator_proc(args, eq_comparator); }
 
 long int lt_comparator (long int a, long int b) { return a < b; }
-SExp * lt_proc (SExp *arguments) { return num_comparator_proc(arguments, lt_comparator); }
+SExp * lt_proc (SExp *args) { return num_comparator_proc(args, lt_comparator); }
 
 long int lte_comparator (long int a, long int b) { return a <= b; }
-SExp * lte_proc (SExp *arguments) { return num_comparator_proc(arguments, lte_comparator); }
+SExp * lte_proc (SExp *args) { return num_comparator_proc(args, lte_comparator); }
 
 long int gt_comparator (long int a, long int b) { return a > b; }
-SExp * gt_proc (SExp *arguments) { return num_comparator_proc(arguments, gt_comparator); }
+SExp * gt_proc (SExp *args) { return num_comparator_proc(args, gt_comparator); }
 
 long int gte_comparator (long int a, long int b) { return a >= b; }
-SExp * gte_proc (SExp *arguments) { return num_comparator_proc(arguments, gte_comparator); }
+SExp * gte_proc (SExp *args) { return num_comparator_proc(args, gte_comparator); }
+
+typedef int (*type_predicate) (SExp* exp);
+SExp *
+type_wrapper(type_predicate fn, SExp *arguments) {
+    if (length(arguments) != 1) {
+        printf("ERR: Wrong number of arguments to predicate\n");
+        return &NIL;
+    }
+    return new_boolean(fn(car(arguments)));
+}
+SExp *nil_proc (SExp *args) { return type_wrapper(is_nil, args); }
+SExp *boolean_proc (SExp *args) { return type_wrapper(is_boolean, args); }
+SExp *symbol_proc (SExp *args) { return type_wrapper(is_symbol, args); }
+SExp *number_proc (SExp *args) { return type_wrapper(is_number, args); }
+SExp *character_proc (SExp *args) { return type_wrapper(is_character, args); }
+SExp *pair_proc (SExp *args) { return type_wrapper(is_pair, args); }
+SExp *primitive_procedure_proc (SExp *args) { return type_wrapper(is_primitive_procedure, args); }
+SExp *string_proc (SExp *args) { return type_wrapper(is_string, args); }
+
+SExp *
+cons_proc (SExp *args) {
+    if (length(args) != 2) {
+        printf("ERR: cons requires 2 args\n");
+        return &NIL;
+    }
+    return cons(car(args), cadr(args));
+}
+
+SExp *
+car_proc (SExp *args) {
+    if (length(args) != 1) {
+        printf("ERR: car requires 1 arg\n");
+        return &NIL;
+    }
+    return caar(args);
+}
+SExp *
+cdr_proc (SExp *args) {
+    if (length(args) != 1) {
+        printf("ERR: cdr requires 1 arg\n");
+        return &NIL;
+    }
+    return cdar(args);
+}
+SExp *
+set_car_proc (SExp *args) {
+    if (length(args) != 2) {
+        printf("ERR: set-car! requires 2 arg\n");
+        return &NIL;
+    }
+    if (!is_pair(car(args))) {
+        printf("ERR: invalid first argument to set-car!\n");
+        return &NIL;
+    }
+    car(args)->pair->car = cadr(args);
+    return &NIL;
+}
+
+SExp *
+set_cdr_proc (SExp *args) {
+    if (length(args) != 2) {
+        printf("ERR: set-cdr! requires 2 arg\n");
+        return &NIL;
+    }
+    if (!is_pair(car(args))) {
+        printf("ERR: invalid first argument to set-cdr!\n");
+        return &NIL;
+    }
+    car(args)->pair->cdr = cadr(args);
+    return &NIL;
+}
+
+SExp *
+list_proc (SExp *args) {
+    return args;
+}
+
+SExp *
+poly_eq_proc (SExp *args) {
+    if (length(args) != 2) {
+        printf("ERR: eq? requires 2 args\n");
+        return &NIL;
+    }
+    SExp *a = car(args);
+    SExp *b = cadr(args);
+
+    if (a->type != b->type)
+        return &FALSE;
+
+    if (a->type == SEXP_TYPE_ATOM) {
+        if (a->atom->type != b->atom->type)
+            return &FALSE;
+        switch (a->atom->type) {
+            case ATOM_TYPE_NUMBER:
+            case ATOM_TYPE_BOOLEAN:
+                return new_boolean(a->atom->number_value == b->atom->number_value);
+            case ATOM_TYPE_STRING:
+            case ATOM_TYPE_SYMBOL:
+                return new_boolean(strcmp(a->atom->string_value, b->atom->string_value) == 0);
+            case ATOM_TYPE_CHARACTER:
+                return new_boolean(a->atom->character_value == b->atom->character_value);
+        }
+    } else if (a->type == SEXP_TYPE_PRIMITIVE_PROC) {
+        return new_boolean(a->proc == b->proc);
+    } else if (a->type == SEXP_TYPE_PAIR) {
+        SExp *car_list = cons(car(a), cons(car(b), &NIL));
+        SExp *cdr_list = cons(cdr(a), cons(cdr(b), &NIL));
+        if (is_true(poly_eq_proc(car_list))) {
+            return poly_eq_proc(cdr_list);
+        } else {
+            return &FALSE;
+        }
+    }
+    return &TRUE;
+}
 
 SExp *
 apply_primitive_procedure (SExp *procedure, SExp *arguments) {
@@ -815,13 +931,30 @@ prune_symbols (SExp *exp, SExp *symbol_table) {
 void
 init_primitive_procs (SExp *global_env) {
     define_variable(new_symbol("length"), new_primitive_proc(length_proc), global_env);
+    define_variable(new_symbol("cons"), new_primitive_proc(cons_proc), global_env);
+    define_variable(new_symbol("car"), new_primitive_proc(car_proc), global_env);
+    define_variable(new_symbol("cdr"), new_primitive_proc(cdr_proc), global_env);
+    define_variable(new_symbol("set-car!"), new_primitive_proc(set_car_proc), global_env);
+    define_variable(new_symbol("set-cdr!"), new_primitive_proc(set_cdr_proc), global_env);
+    define_variable(new_symbol("list"), new_primitive_proc(list_proc), global_env);
+
     define_variable(new_symbol("+"), new_primitive_proc(add_proc), global_env);
     define_variable(new_symbol("*"), new_primitive_proc(mult_proc), global_env);
-    define_variable(new_symbol("="), new_primitive_proc(eq_proc), global_env);
+    define_variable(new_symbol("="), new_primitive_proc(num_eq_proc), global_env);
     define_variable(new_symbol("<"), new_primitive_proc(lt_proc), global_env);
     define_variable(new_symbol("<="), new_primitive_proc(lte_proc), global_env);
     define_variable(new_symbol(">"), new_primitive_proc(gt_proc), global_env);
     define_variable(new_symbol(">="), new_primitive_proc(gte_proc), global_env);
+
+    define_variable(new_symbol("null?"), new_primitive_proc(nil_proc), global_env);
+    define_variable(new_symbol("boolean?"), new_primitive_proc(boolean_proc), global_env);
+    define_variable(new_symbol("symbol?"), new_primitive_proc(symbol_proc), global_env);
+    define_variable(new_symbol("integer?"), new_primitive_proc(number_proc), global_env);
+    define_variable(new_symbol("character?"), new_primitive_proc(character_proc), global_env);
+    define_variable(new_symbol("pair?"), new_primitive_proc(pair_proc), global_env);
+    define_variable(new_symbol("string?"), new_primitive_proc(string_proc), global_env);
+    define_variable(new_symbol("procedure?"), new_primitive_proc(primitive_procedure_proc), global_env);
+    define_variable(new_symbol("eq?"), new_primitive_proc(poly_eq_proc), global_env);
 }
 
 int main (void) {
