@@ -13,7 +13,7 @@ int
 parser__is_symbol_token (char *token, size_t token_size) {
     regex_t re;
     int ret;
-    ret = regcomp(&re, "[_a-zA-Z!0&*/:<=>?^][_a-zA-Z!0&*/:<=>?^0-9.+-]*", REG_EXTENDED|REG_NOSUB);
+    ret = regcomp(&re, "[_a-zA-Z!0&*/:<=>+?^][_a-zA-Z!0&*/:<=>?^0-9.+-]*", REG_EXTENDED|REG_NOSUB);
     if (ret != 0) {
         printf("Error comiling symbol regex\n");
         exit(1);
@@ -369,6 +369,29 @@ new_symbol (const char* symbol_string) {
     return ret;
 }
 
+SExp *
+new_number (long int value) {
+    SExp *ret = new_sexp();
+    ret->type = SEXP_TYPE_ATOM;
+    ret->atom = new_atom();
+    ret->atom->type = ATOM_TYPE_NUMBER;
+    ret->atom->number_value = value;
+    return ret;
+}
+
+SExp *
+new_boolean (int value) {
+    return value ? &TRUE : &FALSE;
+}
+
+SExp *
+new_primitive_proc (Proc proc) {
+    SExp *ret = new_sexp();
+    ret->type = SEXP_TYPE_PRIMITIVE_PROC;
+    ret->proc = proc;
+    return ret;
+}
+
 int is_atom (SExp *exp) { return (exp->type == SEXP_TYPE_ATOM); }
 int is_pair (SExp *exp) { return (exp->type == SEXP_TYPE_PAIR); }
 int is_nil (SExp *exp) { return (exp->type == SEXP_TYPE_NIL); }
@@ -422,9 +445,11 @@ int is_false (SExp *exp) { return is_boolean(exp) && exp->atom->number_value == 
 int is_true (SExp *exp) { return !is_false(exp); }
 int is_if (SExp *exp) { return is_tagged_list(exp, "if"); }
 
-int is_primitive_procedure (SExp *exp) {
-    return is_tagged_list(exp, "list");
-}
+int is_application (SExp *exp) { return is_pair(exp); }
+SExp * operator (SExp *exp) { return car(exp); }
+SExp * operands (SExp *exp) { return cdr(exp); }
+
+int is_primitive_procedure (SExp *exp) { return exp->type == SEXP_TYPE_PRIMITIVE_PROC; }
 
 SExp *
 cons (SExp *car, SExp *cdr) {
@@ -446,22 +471,87 @@ length (SExp *list) {
 }
 
 SExp *
-apply_primitive_procedure (SExp *exp) {
-    SExp *ret;
-    if (is_tagged_list(exp, "list")) {
-        if (!is_pair(cadr(exp))) {
-            printf("ERR: list must be applied to a pair\n");
+length_proc (SExp *arguments) {
+    if (length(arguments) != 1) {
+        printf("ERR: wrong number of arguments to length, expected 1");
+        return &NIL;
+    }
+    SExp *list = car(arguments);
+    if (!is_pair(list)) {
+        printf("ERR: length must be applied to a pair\n");
+        return &NIL;
+    }
+    return new_number(length(list));
+}
+
+typedef long int (*num_reducer)(long int acc, long int next);
+
+SExp *
+num_reducer_proc (SExp *arguments, num_reducer fn, long int init) {
+    long int result = init;
+    while (!is_nil(arguments)) {
+        if (!is_number(car(arguments))) {
+            printf("ERR: Unexpected non-numeric value ");
+            print(car(arguments));
+            printf("\n");
             return &NIL;
         }
-        ret = new_sexp();
-        ret->type = SEXP_TYPE_ATOM;
-        ret->atom = new_atom();
-        ret->atom->type = ATOM_TYPE_NUMBER;
-        ret->atom->number_value = length(cadr(exp));
-        return ret;
+        result = fn(result, car(arguments)->atom->number_value);
+        arguments = cdr(arguments);
     }
-    printf("ERR: couldn't find primitive procedure\n");
-    return &NIL;
+    return new_number(result);
+}
+
+long int add_reducer (long int acc, long int next) { return acc + next; }
+SExp * add_proc (SExp *arguments) { return num_reducer_proc(arguments, add_reducer, 0); }
+
+long int mult_reducer (long int acc, long int next) { return acc * next; }
+SExp * mult_proc (SExp *arguments) { return num_reducer_proc(arguments, mult_reducer, 1); }
+
+SExp *
+num_comparator_proc (SExp *arguments, num_reducer fn) {
+    if (length(arguments) < 2) {
+        printf("ERR: need at least 2 numbers to compare\n");
+        return &NIL;
+    }
+    long int result = 1;
+    SExp *a, *b;
+    while (!is_nil(cdr(arguments))) {
+        a = car(arguments);
+        b = cadr(arguments);
+        if (!is_number(a) || !is_number(b)) {
+            printf("ERR: Unexpected non-numeric value ");
+            print(car(arguments));
+            printf("\n");
+            return &NIL;
+        }
+        if (!fn(a->atom->number_value, b->atom->number_value)) {
+            result = 0;
+            break;
+        }
+        arguments = cdr(arguments);
+    }
+    return new_boolean(result);
+}
+
+long int eq_comparator (long int a, long int b) { return a == b; }
+SExp * eq_proc (SExp *arguments) { return num_comparator_proc(arguments, eq_comparator); }
+
+long int lt_comparator (long int a, long int b) { return a < b; }
+SExp * lt_proc (SExp *arguments) { return num_comparator_proc(arguments, lt_comparator); }
+
+long int lte_comparator (long int a, long int b) { return a <= b; }
+SExp * lte_proc (SExp *arguments) { return num_comparator_proc(arguments, lte_comparator); }
+
+long int gt_comparator (long int a, long int b) { return a > b; }
+SExp * gt_proc (SExp *arguments) { return num_comparator_proc(arguments, gt_comparator); }
+
+long int gte_comparator (long int a, long int b) { return a >= b; }
+SExp * gte_proc (SExp *arguments) { return num_comparator_proc(arguments, gte_comparator); }
+
+SExp *
+apply_primitive_procedure (SExp *procedure, SExp *arguments) {
+    return (procedure->proc)(arguments);
 }
 
 SExp * enclosing_environment (SExp *env) { return cdr(env); }
@@ -579,6 +669,25 @@ eval_if (SExp *exp, SExp *env) {
 }
 
 SExp *
+list_of_values (SExp *exp, SExp *env) {
+    if (is_nil(exp)) {
+        return &NIL;
+    }
+    return cons(eval(car(exp), env), list_of_values(cdr(exp), env));
+}
+
+SExp *
+apply (SExp *procedure, SExp *arguments) {
+    if (is_primitive_procedure(procedure)) {
+        return apply_primitive_procedure(procedure, arguments);
+    }
+    printf("Unknown procedure type in apply: ");
+    print(procedure);
+    printf("\n");
+    return NULL;
+}
+
+SExp *
 eval (SExp *exp, SExp *env) {
     /*
 (define (eval exp env)
@@ -602,12 +711,13 @@ eval (SExp *exp, SExp *env) {
          (error "Unknown expression type - EVAL" exp))))
     */
     if (is_self_evaluating(exp)) return exp;
-    if (is_primitive_procedure(exp)) return apply_primitive_procedure(exp);
     if (is_variable(exp)) return lookup_variable_value(exp, env);
     if (is_quoted(exp)) return cadr(exp); // (quote (exp ()))
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
     if (is_if(exp)) return eval_if(exp, env);
+    if (is_application(exp)) return apply(eval(operator(exp), env),
+                                            list_of_values(operands(exp), env));
     return &NIL;
 }
 
@@ -647,23 +757,20 @@ print (SExp *exp) {
         printf(")");
     } else if (exp->type == SEXP_TYPE_NIL) {
         printf("()");
+    } else if (exp->type == SEXP_TYPE_PRIMITIVE_PROC) {
+        printf("#<primitive>");
     } else {
         printf("ERR: Unable to print invalid sexp");
     }
 }
 
 SExp *
-initialize_global_env () {
-    SExp *global_vars, *global_vals;
-
-    global_vars = cons(new_symbol("true"), cons(new_symbol("false"), &NIL));
-    global_vals = cons(&TRUE, cons(&FALSE, &NIL));
-
-    return extend_environment(global_vars, global_vals, &NIL);
+new_env () {
+    return extend_environment(&NIL, &NIL, &NIL);
 }
 
 SExp *
-initialize_symbol_table (SExp *env) {
+new_symbol_table (SExp *env) {
     return caar(env);
 }
 
@@ -705,13 +812,26 @@ prune_symbols (SExp *exp, SExp *symbol_table) {
     return exp;
 }
 
+void
+init_primitive_procs (SExp *global_env) {
+    define_variable(new_symbol("length"), new_primitive_proc(length_proc), global_env);
+    define_variable(new_symbol("+"), new_primitive_proc(add_proc), global_env);
+    define_variable(new_symbol("*"), new_primitive_proc(mult_proc), global_env);
+    define_variable(new_symbol("="), new_primitive_proc(eq_proc), global_env);
+    define_variable(new_symbol("<"), new_primitive_proc(lt_proc), global_env);
+    define_variable(new_symbol("<="), new_primitive_proc(lte_proc), global_env);
+    define_variable(new_symbol(">"), new_primitive_proc(gt_proc), global_env);
+    define_variable(new_symbol(">="), new_primitive_proc(gte_proc), global_env);
+}
+
 int main (void) {
     printf("Welcome to Lithp\n");
     size_t buf_size = 1024;
     char *buf = malloc(buf_size);
 
-    SExp *global_env = initialize_global_env();
-    SExp *symbol_table = initialize_symbol_table(global_env);
+    SExp *global_env = new_env();
+    init_primitive_procs(global_env);
+    SExp *symbol_table = new_symbol_table(global_env);
     while (1) {
         // read
         printf("> ");

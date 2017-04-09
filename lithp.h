@@ -21,6 +21,7 @@ typedef enum {
     SEXP_TYPE_ATOM,
     SEXP_TYPE_PAIR,
     SEXP_TYPE_NIL,
+    SEXP_TYPE_PRIMITIVE_PROC,
 } SExpType;
 
 typedef struct SExp {
@@ -28,8 +29,11 @@ typedef struct SExp {
     union {
         struct Atom* atom;
         struct Pair* pair;
+        struct SExp* (*proc)(struct SExp *arguments);
     };
 } SExp;
+
+typedef SExp * (*Proc)(SExp *arguments);
 
 typedef struct Pair {
     SExp *car;
