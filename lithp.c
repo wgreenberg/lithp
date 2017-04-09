@@ -275,7 +275,7 @@ parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
         exp->pair->car = new_symbol("quote");
         exp->pair->cdr = cons(new_sexp(), &NIL);
         return parser__parse_sexp(token, token_size, cadr(exp));
-    } 
+    }
 
     if (token[0] == '(') {
         token = next_token();
@@ -329,7 +329,7 @@ parser__parse_program (char *program_txt) {
         exit(1);
     }
     program_idx = 0;
-    
+
     token = tokenize(program_txt);
     while (token != NULL) {
         if (isspace(token[0])) {
@@ -581,11 +581,25 @@ eval_if (SExp *exp, SExp *env) {
 SExp *
 eval (SExp *exp, SExp *env) {
     /*
-    cond ((self-evaluating? exp) exp)
-         ((variable? exp) (lookup-variable-value exp env))
-         ((quoted? exp) (text-of-quotation exp))
-         ((assignment? exp) (eval-assignment exp env))
-         ((definition? exp) (eval-definition exp env))
+(define (eval exp env)
+  (cond ((self-evaluating? exp) exp)
+        ((variable? exp) (lookup-variable-value exp env))
+        ((quoted? exp) (text-of-quotation exp))
+        ((assignment? exp) (eval-assignment exp env))
+        ((definition? exp) (eval-definition exp env))
+        ((if? exp) (eval-if exp env))
+        ((lambda? exp)
+         (make-procedure (lambda-parameters exp)
+                         (lambda-body exp)
+                         env))
+        ((begin? exp)
+         (eval-sequence (begin-actions exp) env))
+        ((cond? exp) (eval (cond->if exp) env))
+        ((application? exp)
+         (apply (eval (operator exp) env)
+                (list-of-values (operands exp) env)))
+        (else
+         (error "Unknown expression type - EVAL" exp))))
     */
     if (is_self_evaluating(exp)) return exp;
     if (is_primitive_procedure(exp)) return apply_primitive_procedure(exp);
