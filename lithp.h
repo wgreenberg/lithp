@@ -48,6 +48,7 @@ Atom * new_atom ();
 SExp * new_symbol (const char* symbol_string);
 SExp * car (SExp *exp);
 SExp * cdr (SExp *exp);
+SExp * cons (SExp *car, SExp *cdr);
 
 #define caar(obj)   car(car(obj))
 #define cadr(obj)   car(cdr(obj))
