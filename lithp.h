@@ -25,7 +25,6 @@ typedef enum {
 
 typedef struct SExp {
     SExpType type;
-    int is_quoted;
     union {
         struct Atom* atom;
         struct Pair* pair;
@@ -39,9 +38,9 @@ typedef struct Pair {
 
 SExp NIL = { SEXP_TYPE_NIL };
 Atom _true_atom = { ATOM_TYPE_BOOLEAN, { 1 } };
-SExp TRUE = { SEXP_TYPE_ATOM, 0, { &_true_atom } };
+SExp TRUE = { SEXP_TYPE_ATOM, { &_true_atom } };
 Atom _false_atom = { ATOM_TYPE_BOOLEAN, { 0 } };
-SExp FALSE = { SEXP_TYPE_ATOM, 0, { &_false_atom } };
+SExp FALSE = { SEXP_TYPE_ATOM, { &_false_atom } };
 
 SExp * new_sexp ();
 Pair * new_pair ();

@@ -261,8 +261,6 @@ parser__parse_pair (char *token, size_t token_size, Pair *pair) {
 int
 parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
     if (token[0] == '\'') {
-        if (token == NULL || exp->is_quoted == 1)
-            return 1;
         if (token_size == 1) {
             token = next_token();
             if (token == NULL)
@@ -272,8 +270,11 @@ parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
             token++;
             token_size--;
         }
-        exp->is_quoted = 1;
-        return parser__parse_sexp(token, token_size, exp);
+        exp->type = SEXP_TYPE_PAIR;
+        exp->pair = new_pair();
+        exp->pair->car = new_symbol("quote");
+        exp->pair->cdr = new_sexp();
+        return parser__parse_sexp(token, token_size, exp->pair->cdr);
     } 
 
     if (token[0] == '(') {
@@ -402,7 +403,7 @@ int is_tagged_list (SExp *exp, const char *tag) {
         && is_symbol(exp->pair->car)
         && (strcmp(tag, exp->pair->car->atom->string_value) == 0);
 }
-int is_quoted (SExp *exp) { return exp->is_quoted; }
+int is_quoted (SExp *exp) { return is_tagged_list(exp, "quote"); }
 int is_variable (SExp *exp) { return is_symbol(exp) && !is_quoted(exp); }
 
 int is_assignment (SExp *exp) { return is_tagged_list(exp, "set!"); }
@@ -558,9 +559,6 @@ eval (SExp *exp, SExp *env) {
 
 void
 print (SExp *exp) {
-    if (exp->is_quoted == 1) {
-        printf("'");
-    }
     if (exp->type == SEXP_TYPE_ATOM) {
         Atom *a = exp->atom;
         if (a->type == ATOM_TYPE_NUMBER) {
