@@ -434,6 +434,7 @@ int is_compound_procedure (SExp *exp) { return is_tagged_list(exp, "procedure");
 int is_lambda (SExp *exp) { return is_tagged_list(exp, "lambda"); }
 int is_begin (SExp *exp) { return is_tagged_list(exp, "begin"); }
 int is_cond (SExp *exp) { return is_tagged_list(exp, "cond"); }
+int is_let (SExp *exp) { return is_tagged_list(exp, "let"); }
 
 SExp * car (SExp *exp) {
     if (!is_pair(exp)) {
@@ -867,6 +868,30 @@ cond_to_if (SExp *exp) {
     return expand_clauses(cdr(exp));
 }
 
+// SExp transform from:
+//   (let ((var val) ...) <let_body_seq>)
+// to
+//   ((lambda (<let vars>) <let_body_seq>) <let_vals>)
+SExp *
+let_to_lambda (SExp *exp) {
+    // (let (<let_env> (<let_body_seq>)))
+    SExp *let_env = cadr(exp);
+    SExp *let_body_seq = cddr(exp);
+
+    // separate vars from vals from bindings like ((var val) ...)
+    SExp *let_vars = &NIL;
+    SExp *let_vals = &NIL;
+    while (!is_nil(let_env)) {
+        let_vars = cons(caar(let_env), let_vars);
+        let_vals = cons(cadar(let_env), let_vals);
+        let_env = cdr(let_env);
+    }
+
+    SExp *lambda_body = cons(let_vars, let_body_seq);
+    SExp *lambda_exp = cons(new_symbol("lambda"), lambda_body);
+    return cons(lambda_exp, let_vals);
+}
+
 SExp *
 apply (SExp *procedure, SExp *arguments) {
     if (is_primitive_procedure(procedure)) {
@@ -892,11 +917,12 @@ eval (SExp *exp, SExp *env) {
     if (is_definition(exp)) return eval_definition(exp, env);
     if (is_if(exp)) return eval_if(exp, env);
     if (is_lambda(exp)) return make_procedure(exp, env);
+    if (is_let(exp)) return eval(let_to_lambda(exp), env);
     if (is_begin(exp)) return eval_sequence(cdr(exp), env);
     if (is_cond(exp)) return eval(cond_to_if(exp), env);
     if (is_application(exp)) return apply(eval(car(exp), env),
                                           list_of_values(cdr(exp), env));
-    printf("ERR: Unknown expression type\n");
+    printf("ERR: Unknown expression type: "); print(exp); printf("\n");
     return &NIL;
 }
 
@@ -1057,6 +1083,7 @@ int main (void) {
             SExp *result = eval(program, global_env);
             if (result == NULL)
                 continue;
+            symbol_table = build_symbol_table(result, symbol_table);
 
             // print
             print(result);
