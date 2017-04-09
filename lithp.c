@@ -395,8 +395,9 @@ SExp * cdr (SExp *exp) {
 int is_number (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_NUMBER); }
 int is_string (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_STRING); }
 int is_symbol (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_SYMBOL); }
+int is_boolean (SExp *exp) { return is_atom(exp) && (exp->atom->type == ATOM_TYPE_BOOLEAN); }
 
-int is_self_evaluating (SExp *exp) { return is_number(exp) || is_string(exp); }
+int is_self_evaluating (SExp *exp) { return is_number(exp) || is_string(exp) || is_boolean(exp); }
 
 int is_tagged_list (SExp *exp, const char *tag) {
     return is_pair(exp)
@@ -414,6 +415,12 @@ int is_definition (SExp *exp) { return is_tagged_list(exp, "define"); }
 // doesn't yet support lambda sugar
 SExp * definition_variable (SExp *exp) { return cadr(exp); }
 SExp * definition_value (SExp *exp) { return caddr(exp); }
+
+// I think this is actually wrong, since in SICP it's implied that the only
+// false value is the singleton FALSE expression
+int is_false (SExp *exp) { return is_boolean(exp) && exp->atom->number_value == 0; }
+int is_true (SExp *exp) { return !is_false(exp); }
+int is_if (SExp *exp) { return is_tagged_list(exp, "if"); }
 
 int is_primitive_procedure (SExp *exp) {
     return is_tagged_list(exp, "list");
@@ -558,6 +565,19 @@ eval_definition (SExp *exp, SExp *env) {
     return &NIL;
 }
 
+SExp * if_predicate (SExp *exp) { return cadr(exp); }
+SExp * if_consequent (SExp *exp) { return caddr(exp); }
+SExp * if_alternative (SExp *exp) { return is_nil(cdddr(exp)) ? &FALSE : cadddr(exp); }
+
+SExp *
+eval_if (SExp *exp, SExp *env) {
+    if (is_true(eval(if_predicate(exp), env))) {
+        return eval(if_consequent(exp), env);
+    } else {
+        return eval(if_alternative(exp), env);
+    }
+}
+
 SExp *
 eval (SExp *exp, SExp *env) {
     /*
@@ -573,6 +593,7 @@ eval (SExp *exp, SExp *env) {
     if (is_quoted(exp)) return cadr(exp); // (quote (exp ()))
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
+    if (is_if(exp)) return eval_if(exp, env);
     return &NIL;
 }
 

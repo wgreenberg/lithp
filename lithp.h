@@ -50,6 +50,8 @@ SExp * car (SExp *exp);
 SExp * cdr (SExp *exp);
 SExp * cons (SExp *car, SExp *cdr);
 
+int is_eq (SExp *a, SExp *b);
+
 #define caar(obj)   car(car(obj))
 #define cadr(obj)   car(cdr(obj))
 #define cdar(obj)   cdr(car(obj))
