@@ -436,9 +436,23 @@ SExp * assignment_variable (SExp *exp) { return cadr(exp); }
 SExp * assignment_value (SExp *exp) { return caddr(exp); }
 
 int is_definition (SExp *exp) { return is_tagged_list(exp, "define"); }
-// doesn't yet support lambda sugar
-SExp * definition_variable (SExp *exp) { return cadr(exp); }
-SExp * definition_value (SExp *exp) { return caddr(exp); }
+SExp * definition_variable (SExp *exp) {
+    if (is_symbol(cadr(exp))) {
+        return cadr(exp);
+    } else {
+        return caadr(exp);
+    }
+}
+SExp * definition_value (SExp *exp) {
+    if (is_symbol(cadr(exp))) {
+        return caddr(exp);
+    } else {
+        SExp *params = cdadr(exp);
+        SExp *body = cddr(exp);
+        SExp *lambda_body = cons(params, body);
+        return cons(new_symbol("lambda"), lambda_body);
+    }
+}
 
 // I think this is actually wrong, since in SICP it's implied that the only
 // false value is the singleton FALSE expression
@@ -451,6 +465,8 @@ SExp * operator (SExp *exp) { return car(exp); }
 SExp * operands (SExp *exp) { return cdr(exp); }
 
 int is_primitive_procedure (SExp *exp) { return exp->type == SEXP_TYPE_PRIMITIVE_PROC; }
+int is_compount_procedure (SExp *exp) { return is_tagged_list(exp, "procedure"); }
+int is_lambda (SExp *exp) { return is_tagged_list(exp, "lambda"); }
 
 SExp *
 cons (SExp *car, SExp *cdr) {
@@ -762,13 +778,13 @@ define_variable (SExp *var, SExp *val, SExp *env) {
 SExp *
 eval_assignment (SExp *exp, SExp *env) {
     set_variable(assignment_variable(exp), eval(assignment_value(exp), env), env);
-    return &NIL;
+    return new_symbol("ok");
 }
 
 SExp *
 eval_definition (SExp *exp, SExp *env) {
     define_variable(definition_variable(exp), eval(definition_value(exp), env), env);
-    return &NIL;
+    return new_symbol("ok");
 }
 
 SExp * if_predicate (SExp *exp) { return cadr(exp); }
@@ -793,9 +809,28 @@ list_of_values (SExp *exp, SExp *env) {
 }
 
 SExp *
+eval_sequence (SExp *seq, SExp *env) {
+    SExp *ret;
+    while (!is_nil(seq)) {
+        ret = eval(car(seq), env);
+        seq = cdr(seq);
+    }
+    return ret;
+}
+
+SExp * procedure_parameters (SExp *proc) { return cadr(proc); }
+SExp * procedure_body (SExp *proc) { return caddr(proc); }
+SExp * procedure_environment (SExp *proc) { return cadddr(proc); }
+
+SExp *
 apply (SExp *procedure, SExp *arguments) {
     if (is_primitive_procedure(procedure)) {
         return apply_primitive_procedure(procedure, arguments);
+    } else if (is_compount_procedure(procedure)) {
+        SExp *params = cadr(procedure);
+        SExp *body = caddr(procedure);
+        SExp *env = cadddr(procedure);
+        return eval_sequence(body, extend_environment(params, arguments, env));
     }
     printf("Unknown procedure type in apply: ");
     print(procedure);
@@ -804,33 +839,20 @@ apply (SExp *procedure, SExp *arguments) {
 }
 
 SExp *
+make_procedure (SExp *exp, SExp *env) {
+    SExp *params = cadr(exp);
+    SExp *body = cddr(exp);
+    return cons(new_symbol("procedure"), cons(params, cons(body, cons(env, &NIL))));
+}
+
+SExp *
 eval (SExp *exp, SExp *env) {
-    /*
-(define (eval exp env)
-  (cond ((self-evaluating? exp) exp)
-        ((variable? exp) (lookup-variable-value exp env))
-        ((quoted? exp) (text-of-quotation exp))
-        ((assignment? exp) (eval-assignment exp env))
-        ((definition? exp) (eval-definition exp env))
-        ((if? exp) (eval-if exp env))
-        ((lambda? exp)
-         (make-procedure (lambda-parameters exp)
-                         (lambda-body exp)
-                         env))
-        ((begin? exp)
-         (eval-sequence (begin-actions exp) env))
-        ((cond? exp) (eval (cond->if exp) env))
-        ((application? exp)
-         (apply (eval (operator exp) env)
-                (list-of-values (operands exp) env)))
-        (else
-         (error "Unknown expression type - EVAL" exp))))
-    */
     if (is_self_evaluating(exp)) return exp;
     if (is_variable(exp)) return lookup_variable_value(exp, env);
     if (is_quoted(exp)) return cadr(exp); // (quote (exp ()))
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
+    if (is_lambda(exp)) return make_procedure(exp, env);
     if (is_if(exp)) return eval_if(exp, env);
     if (is_application(exp)) return apply(eval(operator(exp), env),
                                             list_of_values(operands(exp), env));
