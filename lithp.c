@@ -523,17 +523,33 @@ set_variable (SExp *var, SExp *val, SExp *env) {
 
 void
 define_variable (SExp *var, SExp *val, SExp *env) {
+    SExp *frame, *frame_vars, *frame_vals;
+    frame = car(env);
+    frame_vars = car(frame);
+    frame_vals = cdr(frame);
+    while (1) {
+        if (is_nil(frame_vars)) {
+            add_binding_to_frame(var, val, frame);
+            return;
+        } else if (is_eq(var, car(frame_vars))) {
+            frame_vals->pair->car = val;
+            return;
+        } else {
+            frame_vars = cdr(frame_vars);
+            frame_vals = cdr(frame_vals);
+        }
+    }
 }
 
 SExp *
 eval_assignment (SExp *exp, SExp *env) {
-    set_variable(assignment_variable(exp), assignment_value(exp), env);
+    set_variable(assignment_variable(exp), eval(assignment_value(exp), env), env);
     return &NIL;
 }
 
 SExp *
 eval_definition (SExp *exp, SExp *env) {
-    define_variable(definition_variable(exp), definition_value(exp), env);
+    define_variable(definition_variable(exp), eval(definition_value(exp), env), env);
     return &NIL;
 }
 
