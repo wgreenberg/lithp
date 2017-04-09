@@ -519,6 +519,24 @@ extend_environment (SExp *vars, SExp *vals, SExp *base_env) {
 
 void
 set_variable (SExp *var, SExp *val, SExp *env) {
+    SExp *frame, *frame_vars, *frame_vals;
+    while (!is_nil(env)) {
+        frame = first_frame(env);
+        frame_vars = car(frame);
+        frame_vals = cdr(frame);
+        while (!is_nil(frame_vars)) {
+            if (is_eq(var, car(frame_vars))) {
+                frame_vals->pair->car = val;
+                return;
+            }
+            frame_vars = cdr(frame_vars);
+            frame_vals = cdr(frame_vals);
+        }
+        env = enclosing_environment(env);
+    }
+    printf("Unable to set unbound variable ");
+    print(var);
+    printf("\n");
 }
 
 void
@@ -527,11 +545,8 @@ define_variable (SExp *var, SExp *val, SExp *env) {
     frame = car(env);
     frame_vars = car(frame);
     frame_vals = cdr(frame);
-    while (1) {
-        if (is_nil(frame_vars)) {
-            add_binding_to_frame(var, val, frame);
-            return;
-        } else if (is_eq(var, car(frame_vars))) {
+    while (!is_nil(frame_vars)) {
+        if (is_eq(var, car(frame_vars))) {
             frame_vals->pair->car = val;
             return;
         } else {
@@ -539,6 +554,7 @@ define_variable (SExp *var, SExp *val, SExp *env) {
             frame_vals = cdr(frame_vals);
         }
     }
+    add_binding_to_frame(var, val, frame);
 }
 
 SExp *
