@@ -422,8 +422,6 @@ int is_variable (SExp *exp) { return is_symbol(exp) && !is_quoted(exp); }
 int is_assignment (SExp *exp) { return is_tagged_list(exp, "set!"); }
 int is_definition (SExp *exp) { return is_tagged_list(exp, "define"); }
 
-// I think this is actually wrong, since in SICP it's implied that the only
-// false value is the singleton FALSE expression
 int is_false (SExp *exp) { return is_boolean(exp) && exp->atom->number_value == 0; }
 int is_true (SExp *exp) { return !is_false(exp); }
 
