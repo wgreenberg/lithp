@@ -951,21 +951,44 @@ apply (SExp *procedure, SExp *arguments) {
     exit(1);
 }
 
+#define tail_call(new_exp, new_env) { exp = new_exp; env = new_env; goto eval_begin; }
+
 SExp *
 eval (SExp *exp, SExp *env) {
+eval_begin:
     if (is_self_evaluating(exp)) return exp;
     if (is_variable(exp)) return lookup_variable_value(exp, env);
     if (is_quoted(exp)) return cadr(exp); // (quote (exp ()))
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
     if (is_if(exp)) return eval_if(exp, env);
-    if (is_and(exp) || is_or(exp)) return eval(bool_to_if(exp), env);
+    if (is_and(exp) || is_or(exp)) tail_call(bool_to_if(exp), env);
     if (is_lambda(exp)) return make_procedure(exp, env);
-    if (is_let(exp)) return eval(let_to_lambda(exp), env);
+    if (is_let(exp)) tail_call(let_to_lambda(exp), env);
     if (is_begin(exp)) return eval_sequence(cdr(exp), env);
-    if (is_cond(exp)) return eval(cond_to_if(exp), env);
-    if (is_application(exp)) return apply(eval(car(exp), env),
-                                          list_of_values(cdr(exp), env));
+    if (is_cond(exp)) tail_call(cond_to_if(exp), env);
+    if (is_application(exp)) {
+        if (is_tagged_list(exp, "interaction-environment")) {
+            return env;
+        }
+
+        SExp *procedure, *arguments;
+
+        arguments = list_of_values(cdr(exp), env);
+
+        if (is_tagged_list(exp, "apply")) {
+            procedure = cadr(exp);
+            arguments = cadr(arguments);
+            exp = cons(procedure, arguments);
+            tail_call(cons(procedure, arguments), env);
+        } else if (is_tagged_list(exp, "eval")) {
+            tail_call(car(arguments), cadr(arguments));
+        } else {
+            procedure = eval(car(exp), env);
+        }
+
+        return apply(procedure, arguments);
+    }
     printf("ERR: Unknown expression type: "); print(exp); printf("\n");
     return &NIL;
 }
@@ -1069,33 +1092,56 @@ prune_symbols (SExp *exp, SExp *symbol_table) {
     return exp;
 }
 
-void
-init_primitive_procs (SExp *global_env) {
-    define_variable(new_symbol("length"), new_primitive_proc(length_proc), global_env);
-    define_variable(new_symbol("cons"), new_primitive_proc(cons_proc), global_env);
-    define_variable(new_symbol("car"), new_primitive_proc(car_proc), global_env);
-    define_variable(new_symbol("cdr"), new_primitive_proc(cdr_proc), global_env);
-    define_variable(new_symbol("set-car!"), new_primitive_proc(set_car_proc), global_env);
-    define_variable(new_symbol("set-cdr!"), new_primitive_proc(set_cdr_proc), global_env);
-    define_variable(new_symbol("list"), new_primitive_proc(list_proc), global_env);
+SExp *
+null_env_proc (SExp *exp) {
+    return new_env();
+}
 
-    define_variable(new_symbol("+"), new_primitive_proc(add_proc), global_env);
-    define_variable(new_symbol("*"), new_primitive_proc(mult_proc), global_env);
-    define_variable(new_symbol("="), new_primitive_proc(num_eq_proc), global_env);
-    define_variable(new_symbol("<"), new_primitive_proc(lt_proc), global_env);
-    define_variable(new_symbol("<="), new_primitive_proc(lte_proc), global_env);
-    define_variable(new_symbol(">"), new_primitive_proc(gt_proc), global_env);
-    define_variable(new_symbol(">="), new_primitive_proc(gte_proc), global_env);
+SExp *
+init_scheme_env () {
+    SExp *env = new_env();
 
-    define_variable(new_symbol("null?"), new_primitive_proc(nil_proc), global_env);
-    define_variable(new_symbol("boolean?"), new_primitive_proc(boolean_proc), global_env);
-    define_variable(new_symbol("symbol?"), new_primitive_proc(symbol_proc), global_env);
-    define_variable(new_symbol("integer?"), new_primitive_proc(number_proc), global_env);
-    define_variable(new_symbol("character?"), new_primitive_proc(character_proc), global_env);
-    define_variable(new_symbol("pair?"), new_primitive_proc(pair_proc), global_env);
-    define_variable(new_symbol("string?"), new_primitive_proc(string_proc), global_env);
-    define_variable(new_symbol("procedure?"), new_primitive_proc(primitive_procedure_proc), global_env);
-    define_variable(new_symbol("eq?"), new_primitive_proc(poly_eq_proc), global_env);
+    // list functions
+    define_variable(new_symbol("length"), new_primitive_proc(length_proc), env);
+    define_variable(new_symbol("cons"), new_primitive_proc(cons_proc), env);
+    define_variable(new_symbol("car"), new_primitive_proc(car_proc), env);
+    define_variable(new_symbol("cdr"), new_primitive_proc(cdr_proc), env);
+    define_variable(new_symbol("set-car!"), new_primitive_proc(set_car_proc), env);
+    define_variable(new_symbol("set-cdr!"), new_primitive_proc(set_cdr_proc), env);
+    define_variable(new_symbol("list"), new_primitive_proc(list_proc), env);
+
+    // integer functions
+    define_variable(new_symbol("+"), new_primitive_proc(add_proc), env);
+    define_variable(new_symbol("*"), new_primitive_proc(mult_proc), env);
+    define_variable(new_symbol("="), new_primitive_proc(num_eq_proc), env);
+    define_variable(new_symbol("<"), new_primitive_proc(lt_proc), env);
+    define_variable(new_symbol("<="), new_primitive_proc(lte_proc), env);
+    define_variable(new_symbol(">"), new_primitive_proc(gt_proc), env);
+    define_variable(new_symbol(">="), new_primitive_proc(gte_proc), env);
+
+    // type definition functions
+    define_variable(new_symbol("null?"), new_primitive_proc(nil_proc), env);
+    define_variable(new_symbol("boolean?"), new_primitive_proc(boolean_proc), env);
+    define_variable(new_symbol("symbol?"), new_primitive_proc(symbol_proc), env);
+    define_variable(new_symbol("integer?"), new_primitive_proc(number_proc), env);
+    define_variable(new_symbol("character?"), new_primitive_proc(character_proc), env);
+    define_variable(new_symbol("pair?"), new_primitive_proc(pair_proc), env);
+    define_variable(new_symbol("string?"), new_primitive_proc(string_proc), env);
+    define_variable(new_symbol("procedure?"), new_primitive_proc(primitive_procedure_proc), env);
+    define_variable(new_symbol("eq?"), new_primitive_proc(poly_eq_proc), env);
+
+    // apply and eval are special, since we'll use tail call elimination to
+    // obviate the need for an actual procedure call
+    define_variable(new_symbol("apply"), new_primitive_proc(NULL), env);
+    define_variable(new_symbol("eval"), new_primitive_proc(NULL), env);
+
+    // environment functions
+    define_variable(new_symbol("null-environment"), new_primitive_proc(null_env_proc), env);
+    // interaction-environment requires no proc, since it needs to steal the
+    // current env from eval
+    define_variable(new_symbol("interaction-environment"), new_primitive_proc(NULL), env);
+
+    return env;
 }
 
 int main (void) {
@@ -1103,8 +1149,7 @@ int main (void) {
     size_t buf_size = 1024;
     char *buf = malloc(buf_size);
 
-    SExp *global_env = new_env();
-    init_primitive_procs(global_env);
+    SExp *global_env = init_scheme_env();
     SExp *symbol_table = new_symbol_table(global_env);
     while (1) {
         // read

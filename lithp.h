@@ -100,5 +100,9 @@ int parser__parse_sexp (char *token, size_t token_size, SExp *exp);
 
 // EVAL
 SExp * eval (SExp *exp, SExp *env);
+SExp * apply (SExp *proc, SExp *args);
+SExp * null_env_proc (SExp *exp);
+SExp * init_scheme_env ();
+
 
 void print (SExp *exp);
