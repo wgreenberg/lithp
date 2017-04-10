@@ -707,7 +707,7 @@ lookup_variable_value (SExp *var, SExp *env) {
     printf("Unbound variable: ");
     print(var);
     printf("\n");
-    return NULL;
+    exit(1);
 }
 
 SExp *
@@ -948,7 +948,7 @@ apply (SExp *procedure, SExp *arguments) {
     printf("Unknown procedure type in apply: ");
     print(procedure);
     printf("\n");
-    return NULL;
+    exit(1);
 }
 
 SExp *
