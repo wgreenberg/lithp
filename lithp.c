@@ -797,18 +797,6 @@ eval_definition (SExp *exp, SExp *env) {
 }
 
 SExp *
-eval_if (SExp *exp, SExp *env) {
-    SExp *predicate = cadr(exp);
-    SExp *consequent = caddr(exp);
-    SExp *alternative = is_nil(cdddr(exp)) ? &FALSE : cadddr(exp);
-    if (is_true(eval(predicate, env))) {
-        return eval(consequent, env);
-    } else {
-        return eval(alternative, env);
-    }
-}
-
-SExp *
 list_of_values (SExp *exp, SExp *env) {
     if (is_nil(exp)) {
         return &NIL;
@@ -959,7 +947,16 @@ eval_begin:
     if (is_quoted(exp)) return cadr(exp); // (quote (exp ()))
     if (is_assignment(exp)) return eval_assignment(exp, env);
     if (is_definition(exp)) return eval_definition(exp, env);
-    if (is_if(exp)) return eval_if(exp, env);
+    if (is_if(exp)) {
+        SExp *predicate = cadr(exp);
+        SExp *consequent = caddr(exp);
+        SExp *alternative = is_nil(cdddr(exp)) ? &FALSE : cadddr(exp);
+        if (is_true(eval(predicate, env))) {
+            tail_call(consequent, env);
+        } else {
+            tail_call(alternative, env);
+        }
+    }
     if (is_and(exp) || is_or(exp)) tail_call(bool_to_if(exp), env);
     if (is_lambda(exp)) return make_procedure(exp, env);
     if (is_let(exp)) tail_call(let_to_lambda(exp), env);
