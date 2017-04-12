@@ -73,7 +73,16 @@ _next_token (char *buf) {
 
     i = 0;
     while (1) {
+        if (i >= MAX_STRING_SIZE) {
+            printf("ran out of token buffer space\n");
+            exit(1);
+        }
+
         c = getc(_t_in);
+
+        if (c == EOF)
+            break;
+
         if (is_delim(c)) {
             if(i == 0) {
                 buf[i++] = c;
@@ -675,6 +684,39 @@ poly_eq_proc (SExp *args) {
 }
 
 SExp *
+load_proc (SExp* args) {
+    SExp *program, *curr_exp;
+    char *filename;
+    FILE *in;
+
+    if (length(args) != 1 || !is_string(car(args))) {
+        printf("ERR: load requires a single filename\n");
+        return &NIL;
+    }
+
+    filename = car(args)->atom->string_value;
+    in = fopen(filename, "r");
+
+    if (in == NULL) {
+        printf("ERR: Couldn't read file %s\n", filename);
+        return &NIL;
+    }
+
+    program = parser__parse_program(in, 0);
+
+    if (program == NULL) {
+        printf("ERR: Parser error for %s\n", filename);
+    } else {
+        global_symbol_table = build_symbol_table(program, global_symbol_table);
+        program = prune_symbols(program, global_symbol_table);
+        eval(program, global_env);
+    }
+
+    fclose(in);
+    return &NIL;
+}
+
+SExp *
 apply_primitive_procedure (SExp *procedure, SExp *arguments) {
     return (procedure->proc)(arguments);
 }
@@ -1122,12 +1164,15 @@ init_scheme_env () {
     // current env from eval
     define_variable(new_symbol("interaction-environment"), new_primitive_proc(NULL), env);
 
+    // I/O functions
+    define_variable(new_symbol("load"), new_primitive_proc(load_proc), env);
+
     return env;
 }
 
 int main (void) {
-    SExp *global_env = init_scheme_env();
-    SExp *symbol_table = new_symbol_table(global_env);
+    global_env = init_scheme_env();
+    global_symbol_table = new_symbol_table(global_env);
     printf("Welcome to Lithp\n");
     while (1) {
         // read
@@ -1135,8 +1180,8 @@ int main (void) {
         SExp *program = parser__parse_program(stdin, 1);
         if (program == NULL)
             continue;
-        symbol_table = build_symbol_table(program, symbol_table);
-        program = prune_symbols(program, symbol_table);
+        global_symbol_table = build_symbol_table(program, global_symbol_table);
+        program = prune_symbols(program, global_symbol_table);
 
         // evaluate
         SExp *result = eval(program, global_env);
@@ -1144,7 +1189,7 @@ int main (void) {
             printf("ERR: eval returned null\n");
             exit(1);
         }
-        symbol_table = build_symbol_table(result, symbol_table);
+        global_symbol_table = build_symbol_table(result, global_symbol_table);
 
         // print
         print(result); printf("\n");
