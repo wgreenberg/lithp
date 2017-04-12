@@ -441,9 +441,7 @@ int is_or (SExp *exp) { return is_tagged_list(exp, "or"); }
 
 SExp * car (SExp *exp) {
     if (!is_pair(exp)) {
-        printf("Tried to apply car to non-pair: ");
-        print(exp);
-        printf("\n");
+        printf("Tried to apply car to non-pair: "); print(exp); printf("\n");
         exit(1);
     }
     return exp->pair->car;
@@ -451,9 +449,7 @@ SExp * car (SExp *exp) {
 
 SExp * cdr (SExp *exp) {
     if (!is_pair(exp)) {
-        printf("Tried to apply cdr to non-pair: ");
-        print(exp);
-        printf("\n");
+        printf("Tried to apply cdr to non-pair: "); print(exp); printf("\n");
         exit(1);
     }
     return exp->pair->cdr;
@@ -498,9 +494,7 @@ num_reducer_proc (SExp *arguments, num_reducer fn, long int init) {
     long int result = init;
     while (!is_nil(arguments)) {
         if (!is_number(car(arguments))) {
-            printf("ERR: Unexpected non-numeric value ");
-            print(car(arguments));
-            printf("\n");
+            printf("ERR: Unexpected non-numeric value "); print(car(arguments)); printf("\n");
             return &NIL;
         }
         result = fn(result, car(arguments)->atom->number_value);
@@ -527,9 +521,7 @@ num_comparator_proc (SExp *arguments, num_reducer fn) {
         a = car(arguments);
         b = cadr(arguments);
         if (!is_number(a) || !is_number(b)) {
-            printf("ERR: Unexpected non-numeric value ");
-            print(car(arguments));
-            printf("\n");
+            printf("ERR: Unexpected non-numeric value "); print(car(arguments)); printf("\n");
             return &NIL;
         }
         if (!fn(a->atom->number_value, b->atom->number_value)) {
@@ -705,20 +697,14 @@ lookup_variable_value (SExp *var, SExp *env) {
         }
         env = cdr(env);
     }
-    printf("Unbound variable: ");
-    print(var);
-    printf("\n");
+    printf("Unbound variable: "); print(var); printf("\n");
     exit(1);
 }
 
 SExp *
 extend_environment (SExp *vars, SExp *vals, SExp *base_env) {
     if (length(vars) != length(vals)) {
-        printf("Variables and values must be equal in length: \n");
-        print(vars);
-        printf("\n");
-        print(vals);
-        printf("\n");
+        printf("Variables and values must be equal in length: \n"); print(vars); printf("\n"); print(vals); printf("\n");
         return &NIL;
     }
     return cons(cons(vars, vals), base_env);
@@ -741,9 +727,7 @@ set_variable (SExp *var, SExp *val, SExp *env) {
         }
         env = cdr(env);
     }
-    printf("Unable to set unbound variable ");
-    print(var);
-    printf("\n");
+    printf("Unable to set unbound variable "); print(var); printf("\n");
 }
 
 void
@@ -934,9 +918,7 @@ apply (SExp *procedure, SExp *arguments) {
         SExp *env = cadddr(procedure);
         return eval_sequence(body, extend_environment(params, arguments, env));
     }
-    printf("Unknown procedure type in apply: ");
-    print(procedure);
-    printf("\n");
+    printf("Unknown procedure type in apply: "); print(procedure); printf("\n");
     exit(1);
 }
 
@@ -1022,17 +1004,9 @@ print (SExp *exp) {
     } else if (is_compound_procedure(exp)) {
         SExp *params = cadr(exp);
         SExp *body = caddr(exp);
-        printf("(compound-procedure ");
-        print(params);
-        printf(" ");
-        print(body);
-        printf("'<procedure-env>)");
+        printf("(compound-procedure "); print(params); printf(" "); print(body); printf("'<procedure-env>)");
     } else if (is_pair(exp)) {
-        printf("(");
-        print(exp->pair->car);
-        printf(" ");
-        print(exp->pair->cdr);
-        printf(")");
+        printf("("); print(exp->pair->car); printf(" "); print(exp->pair->cdr); printf(")");
     } else if (is_nil(exp)) {
         printf("()");
     } else if (is_primitive_procedure(exp)) {
