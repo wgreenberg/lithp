@@ -88,7 +88,8 @@ int is_nil (SExp *exp);
 
 // PARSE
 
-SExp * parser__parse_program (char *program_txt);
+int is_delim (char c);
+SExp * parser__parse_program (FILE *in, int is_repl);
 
 int parser__is_symbol_token (char *token, size_t token_size);
 int parser__is_number_token (char *token);

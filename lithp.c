@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
@@ -53,30 +54,38 @@ parser__is_nil_token (char *token, size_t token_size) {
     return 0;
 }
 
-int _t_idx;
-int _t_orig_len;
+FILE *_t_in;
 char _t_buf[MAX_STRING_SIZE];
 char _t_peek_buf[MAX_STRING_SIZE];
-char *_t_orig;
 
 const char* delim = " ()\n\"\\\0";
 int n_delim = 7;
+
+void
+init_parser (FILE *in) {
+    _t_in = in;
+}
+
 int
 _next_token (char *buf) {
-    if (_t_idx >= _t_orig_len)
-        return 0;
+    int i;
+    char c;
 
-    int i=0;
-    char *bookmark = _t_orig + _t_idx;
-    int next_t_pos = strcspn(bookmark, delim);
-
-    if (next_t_pos == 0) {
-        buf[i++] = bookmark[0];
-    } else {
-        for (i=0; i<next_t_pos; i++) {
-            buf[i] = bookmark[i];
+    i = 0;
+    while (1) {
+        c = getc(_t_in);
+        if (is_delim(c)) {
+            if(i == 0) {
+                buf[i++] = c;
+                break;
+            } else {
+                ungetc(c, _t_in);
+                break;
+            }
         }
+        buf[i++] = c;
     }
+
     buf[i] = '\0';
     return i;
 }
@@ -84,8 +93,14 @@ _next_token (char *buf) {
 char *
 peek_next_token () {
     int buf_len = _next_token(_t_peek_buf);
+
     if (buf_len == 0)
         return NULL;
+
+    while (buf_len > 0) {
+        ungetc(_t_peek_buf[--buf_len], _t_in);
+    }
+
     return _t_peek_buf;
 }
 
@@ -94,19 +109,7 @@ next_token () {
     int buf_len = _next_token(_t_buf);
     if (buf_len == 0)
         return NULL;
-    _t_idx += buf_len;
     return _t_buf;
-}
-
-char *
-tokenize (char *string) {
-    _t_idx = 0;
-    _t_orig_len = strlen(string);
-    _t_orig = string;
-    if (_t_orig_len == 0)
-        return NULL;
-
-    return next_token();
 }
 
 int
@@ -121,9 +124,10 @@ is_delim (char c) {
 
 void
 consume_whitespace () {
-    if (_t_idx >= _t_orig_len)
-        return;
-    _t_idx += strspn(_t_orig + _t_idx, " \n");
+    char c;
+    c = getc(_t_in);
+    while (c == ' ' || c == '\n') c = getc(_t_in);
+    ungetc(c, _t_in);
 }
 
 int
@@ -316,7 +320,7 @@ parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
 }
 
 SExp *
-parser__parse_program (char *program_txt) {
+parser__parse_program (FILE *in, int is_repl) {
     char *token;
     size_t token_size;
     SExp *program, *ret;
@@ -324,7 +328,8 @@ parser__parse_program (char *program_txt) {
 
     program = &NIL;
 
-    token = tokenize(program_txt);
+    init_parser(in);
+    token = next_token();
     while (token != NULL) {
         if (isspace(token[0])) {
             token = next_token();
@@ -337,6 +342,10 @@ parser__parse_program (char *program_txt) {
         if (!parser__parse_sexp(token, token_size, curr_exp)) {
             // this builds a list of the expressions from last to first
             program = cons(curr_exp, program);
+
+            // if we're running in the context of a REPL, just return after the
+            // first expression is parsed
+            if (is_repl) break;
         } else {
             printf("Unknown token %s\n", token);
             return NULL;
@@ -344,7 +353,7 @@ parser__parse_program (char *program_txt) {
         token = next_token();
     }
 
-    // ret = cons('begin, reverse(program))
+    // we want to return cons('begin, reverse(program))
     ret = &NIL;
     while (!is_nil(program)) {
         ret = cons(car(program), ret);
@@ -1117,22 +1126,19 @@ init_scheme_env () {
 }
 
 int main (void) {
-    printf("Welcome to Lithp\n");
-    size_t buf_size = 1024;
-    char *buf = malloc(buf_size);
-
     SExp *global_env = init_scheme_env();
     SExp *symbol_table = new_symbol_table(global_env);
+    printf("Welcome to Lithp\n");
     while (1) {
         // read
         printf("> ");
-        getline(&buf, &buf_size, stdin);
-        // evaluate
-        SExp *program = parser__parse_program(buf);
+        SExp *program = parser__parse_program(stdin, 1);
         if (program == NULL)
             continue;
         symbol_table = build_symbol_table(program, symbol_table);
         program = prune_symbols(program, symbol_table);
+
+        // evaluate
         SExp *result = eval(program, global_env);
         if (result == NULL) {
             printf("ERR: eval returned null\n");
@@ -1143,5 +1149,4 @@ int main (void) {
         // print
         print(result); printf("\n");
     }
-    free(buf);
 }
