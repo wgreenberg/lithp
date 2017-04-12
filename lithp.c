@@ -319,16 +319,10 @@ SExp *
 parser__parse_program (char *program_txt) {
     char *token;
     size_t token_size;
-    SExp *program;
-    SExp curr_exp;
-    int program_idx;
+    SExp *program, *ret;
+    SExp *curr_exp;
 
-    program = (SExp*)(malloc(1024 * sizeof(SExp)));
-    if (program == NULL) {
-        printf("Out of memory\n");
-        exit(1);
-    }
-    program_idx = 0;
+    program = &NIL;
 
     token = tokenize(program_txt);
     while (token != NULL) {
@@ -338,10 +332,11 @@ parser__parse_program (char *program_txt) {
         }
 
         token_size = strlen(token);
-        curr_exp = (SExp){0};
+        curr_exp = new_sexp();
 
-        if (!parser__parse_sexp(token, token_size, &curr_exp)) {
-            program[program_idx++] = curr_exp;
+        if (!parser__parse_sexp(token, token_size, curr_exp)) {
+            // this builds a list of the expressions from last to first
+            program = cons(curr_exp, program);
         } else {
             printf("Unknown token %s\n", token);
             return NULL;
@@ -349,7 +344,15 @@ parser__parse_program (char *program_txt) {
         token = next_token();
     }
 
-    return program;
+    // ret = cons('begin, reverse(program))
+    ret = &NIL;
+    while (!is_nil(program)) {
+        ret = cons(car(program), ret);
+        program = cdr(program);
+    }
+    ret = cons(new_symbol("begin"), ret);
+
+    return ret;
 }
 
 // EVALUATOR
@@ -1150,29 +1153,21 @@ int main (void) {
         // read
         printf("> ");
         getline(&buf, &buf_size, stdin);
-        if (0) {
-            char * token = tokenize(buf);
-            while (token != NULL) {
-                consume_whitespace();
-                printf("%s\n", token);
-                token = next_token();
-            }
-        } else {
-            // evaluate
-            SExp *program = parser__parse_program(buf);
-            if (program == NULL)
-                continue;
-            symbol_table = build_symbol_table(program, symbol_table);
-            program = prune_symbols(program, symbol_table);
-            SExp *result = eval(program, global_env);
-            if (result == NULL)
-                continue;
-            symbol_table = build_symbol_table(result, symbol_table);
-
-            // print
-            print(result);
-            printf("\n");
+        // evaluate
+        SExp *program = parser__parse_program(buf);
+        if (program == NULL)
+            continue;
+        symbol_table = build_symbol_table(program, symbol_table);
+        program = prune_symbols(program, symbol_table);
+        SExp *result = eval(program, global_env);
+        if (result == NULL) {
+            printf("ERR: eval returned null\n");
+            exit(1);
         }
+        symbol_table = build_symbol_table(result, symbol_table);
+
+        // print
+        print(result); printf("\n");
     }
     free(buf);
 }

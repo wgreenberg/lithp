@@ -55,6 +55,7 @@ SExp * cdr (SExp *exp);
 SExp * cons (SExp *car, SExp *cdr);
 
 int is_eq (SExp *a, SExp *b);
+int is_nil (SExp *exp);
 
 #define caar(obj)   car(car(obj))
 #define cadr(obj)   car(cdr(obj))
@@ -103,6 +104,8 @@ SExp * eval (SExp *exp, SExp *env);
 SExp * apply (SExp *proc, SExp *args);
 SExp * null_env_proc (SExp *exp);
 SExp * init_scheme_env ();
-
+SExp * new_symbol_table ();
+SExp * build_symbol_table (SExp *exp, SExp *symbol_table);
+SExp * prune_symbols (SExp *exp, SExp *symbol_table);
 
 void print (SExp *exp);
