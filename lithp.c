@@ -291,6 +291,7 @@ parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
     }
 
     if (token[0] == '(') {
+        consume_whitespace();
         token = next_token();
         if (token == NULL)
             return 1;
@@ -457,6 +458,17 @@ int is_let (SExp *exp) { return is_tagged_list(exp, "let"); }
 int is_and (SExp *exp) { return is_tagged_list(exp, "and"); }
 int is_or (SExp *exp) { return is_tagged_list(exp, "or"); }
 
+int is_list (SExp *exp) {
+    if (is_nil(exp))
+        return 1;
+    if (!is_pair(exp))
+        return 0;
+    while (is_pair(exp)) {
+        exp = cdr(exp);
+    }
+    return is_nil(exp);
+}
+
 SExp * car (SExp *exp) {
     if (!is_pair(exp)) {
         printf("Tried to apply car to non-pair: "); print(exp); printf("\n");
@@ -585,6 +597,7 @@ SExp *character_proc (SExp *args) { return type_wrapper(is_character, args); }
 SExp *pair_proc (SExp *args) { return type_wrapper(is_pair, args); }
 SExp *primitive_procedure_proc (SExp *args) { return type_wrapper(is_primitive_procedure, args); }
 SExp *string_proc (SExp *args) { return type_wrapper(is_string, args); }
+SExp *is_list_proc (SExp *args) { return type_wrapper(is_list, args); }
 
 SExp *
 cons_proc (SExp *args) {
@@ -685,7 +698,7 @@ poly_eq_proc (SExp *args) {
 
 SExp *
 load_proc (SExp* args) {
-    SExp *program, *curr_exp;
+    SExp *program;
     char *filename;
     FILE *in;
 
@@ -1056,10 +1069,22 @@ print (SExp *exp) {
         SExp *params = cadr(exp);
         SExp *body = caddr(exp);
         printf("(compound-procedure "); print(params); printf(" "); print(body); printf("'<procedure-env>)");
-    } else if (is_pair(exp)) {
-        printf("("); print(exp->pair->car); printf(" "); print(exp->pair->cdr); printf(")");
     } else if (is_nil(exp)) {
         printf("()");
+    } else if (is_list(exp)) {
+        printf("(");
+        while (1) {
+            print(car(exp));
+            if (is_nil(cdr(exp))) {
+                printf(")");
+                break;
+            } else {
+                printf(" ");
+            }
+            exp = cdr(exp);
+        }
+    } else if (is_pair(exp)) {
+        printf("("); print(exp->pair->car); printf(" . "); print(exp->pair->cdr); printf(")");
     } else if (is_primitive_procedure(exp)) {
         printf("#<primitive>");
     } else {
@@ -1152,6 +1177,7 @@ init_scheme_env () {
     define_variable(new_symbol("string?"), new_primitive_proc(string_proc), env);
     define_variable(new_symbol("procedure?"), new_primitive_proc(primitive_procedure_proc), env);
     define_variable(new_symbol("eq?"), new_primitive_proc(poly_eq_proc), env);
+    define_variable(new_symbol("list?"), new_primitive_proc(is_list_proc), env);
 
     // apply and eval are special, since we'll use tail call elimination to
     // obviate the need for an actual procedure call
