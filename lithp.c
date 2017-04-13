@@ -723,31 +723,6 @@ poly_eq_proc (SExp *args) {
     return &TRUE;
 }
 
-void
-load_and_run (char *filename) {
-    SExp *program;
-    FILE *in;
-
-    in = fopen(filename, "r");
-
-    if (in == NULL) {
-        printf("ERR: Couldn't read file %s\n", filename);
-        return;
-    }
-
-    program = parser__parse_program(in, 0);
-
-    if (program == NULL) {
-        printf("ERR: Parser error for %s\n", filename);
-    } else {
-        global_symbol_table = build_symbol_table(program, global_symbol_table);
-        program = prune_symbols(program, global_symbol_table);
-        eval(program, global_env);
-    }
-
-    fclose(in);
-}
-
 SExp *
 load_proc (SExp* args) {
     char *filename;
@@ -1254,6 +1229,31 @@ run_repl () {
 
         print(result); printf("\n");
     }
+}
+
+void
+load_and_run (char *filename) {
+    SExp *program;
+    FILE *in;
+
+    in = fopen(filename, "r");
+
+    if (in == NULL) {
+        printf("ERR: Couldn't read file %s\n", filename);
+        return;
+    }
+
+    program = parser__parse_program(in, 0);
+
+    if (program == NULL) {
+        printf("ERR: Parser error for %s\n", filename);
+    } else {
+        global_symbol_table = build_symbol_table(program, global_symbol_table);
+        program = prune_symbols(program, global_symbol_table);
+        eval(program, global_env);
+    }
+
+    fclose(in);
 }
 
 int main (int n_args, char **argv) {
