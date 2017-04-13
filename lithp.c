@@ -621,6 +621,23 @@ SExp * gt_proc (SExp *args) { return num_comparator_proc(args, gt_comparator); }
 long int gte_comparator (long int a, long int b) { return a >= b; }
 SExp * gte_proc (SExp *args) { return num_comparator_proc(args, gte_comparator); }
 
+SExp *
+num_binary_op_proc (SExp *args, num_reducer fn) {
+    long int a, b;
+    if (length(args) != 2 || !is_number(car(args)) || !is_number(cadr(args))) {
+        printf("ERR: need exactly 2 numbers\n");
+        return &NIL;
+    }
+    a = car(args)->atom->number_value;
+    b = cadr(args)->atom->number_value;
+    return new_number(fn(a, b));
+}
+
+long int rem_op (long int a, long int b) { return a % b; }
+SExp * remainder_proc (SExp* args) { return num_binary_op_proc(args, rem_op);  }
+long int div_op (long int a, long int b) { return a / b; }
+SExp * quotient_proc (SExp* args) { return num_binary_op_proc(args, div_op);  }
+
 typedef int (*type_predicate) (SExp* exp);
 
 SExp *
@@ -1194,6 +1211,8 @@ init_scheme_env () {
     define_variable(new_symbol("<="), new_primitive_proc(lte_proc), env);
     define_variable(new_symbol(">"), new_primitive_proc(gt_proc), env);
     define_variable(new_symbol(">="), new_primitive_proc(gte_proc), env);
+    define_variable(new_symbol("remainder"), new_primitive_proc(remainder_proc), env);
+    define_variable(new_symbol("quotient"), new_primitive_proc(quotient_proc), env);
 
     // type definition functions
     define_variable(new_symbol("null?"), new_primitive_proc(nil_proc), env);
