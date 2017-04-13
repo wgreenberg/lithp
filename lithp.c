@@ -551,6 +551,15 @@ print_proc (SExp *args) {
     return &NIL;
 }
 
+SExp *
+str_to_sym_proc (SExp *args) {
+    if (length(args) != 1 || !is_string(car(args))) {
+        printf("ERR: string->symbol requires a string");
+        return &NIL;
+    }
+    return new_symbol(car(args)->atom->string_value);
+}
+
 typedef long int (*num_reducer)(long int acc, long int next);
 
 SExp *
@@ -712,10 +721,11 @@ poly_eq_proc (SExp *args) {
             case ATOM_TYPE_BOOLEAN:
                 return new_boolean(a->atom->number_value == b->atom->number_value);
             case ATOM_TYPE_STRING:
-            case ATOM_TYPE_SYMBOL:
                 return new_boolean(strcmp(a->atom->string_value, b->atom->string_value) == 0);
             case ATOM_TYPE_CHARACTER:
                 return new_boolean(a->atom->character_value == b->atom->character_value);
+            case ATOM_TYPE_SYMBOL:
+                return new_boolean(a == b);
         }
     } else if (a->type == SEXP_TYPE_PRIMITIVE_PROC) {
         return new_boolean(a->proc == b->proc);
@@ -1197,6 +1207,8 @@ init_scheme_env () {
     define_variable(new_symbol("eq?"), new_primitive_proc(poly_eq_proc), env);
     define_variable(new_symbol("list?"), new_primitive_proc(is_list_proc), env);
     define_variable(new_symbol("finite?"), new_primitive_proc(is_finite_proc), env);
+
+    define_variable(new_symbol("string->symbol"), new_primitive_proc(str_to_sym_proc), env);
 
     // apply and eval are special, since we'll use tail call elimination to
     // obviate the need for an actual procedure call
