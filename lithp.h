@@ -109,6 +109,9 @@ SExp * new_symbol_table ();
 SExp * build_symbol_table (SExp *exp, SExp *symbol_table);
 SExp * prune_symbols (SExp *exp, SExp *symbol_table);
 
+void run_repl ();
+void load_and_run (char *filename);
+
 SExp *global_env;
 SExp *global_symbol_table;
 

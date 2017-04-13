@@ -510,11 +510,18 @@ length_proc (SExp *arguments) {
         return &NIL;
     }
     SExp *list = car(arguments);
-    if (!is_pair(list)) {
+    if (is_pair(list) || is_nil(list)) {
+        return new_number(length(list));
+    } else {
         printf("ERR: length must be applied to a pair\n");
         return &NIL;
     }
-    return new_number(length(list));
+}
+
+SExp *
+print_proc (SExp *exp) {
+    print(exp); printf("\n");
+    return &NIL;
 }
 
 typedef long int (*num_reducer)(long int acc, long int next);
@@ -598,6 +605,7 @@ SExp *pair_proc (SExp *args) { return type_wrapper(is_pair, args); }
 SExp *primitive_procedure_proc (SExp *args) { return type_wrapper(is_primitive_procedure, args); }
 SExp *string_proc (SExp *args) { return type_wrapper(is_string, args); }
 SExp *is_list_proc (SExp *args) { return type_wrapper(is_list, args); }
+SExp *is_finite_proc (SExp *args) { return type_wrapper(is_finite, args); }
 
 SExp *
 cons_proc (SExp *args) {
@@ -696,23 +704,16 @@ poly_eq_proc (SExp *args) {
     return &TRUE;
 }
 
-SExp *
-load_proc (SExp* args) {
+void
+load_and_run (char *filename) {
     SExp *program;
-    char *filename;
     FILE *in;
 
-    if (length(args) != 1 || !is_string(car(args))) {
-        printf("ERR: load requires a single filename\n");
-        return &NIL;
-    }
-
-    filename = car(args)->atom->string_value;
     in = fopen(filename, "r");
 
     if (in == NULL) {
         printf("ERR: Couldn't read file %s\n", filename);
-        return &NIL;
+        return;
     }
 
     program = parser__parse_program(in, 0);
@@ -726,6 +727,19 @@ load_proc (SExp* args) {
     }
 
     fclose(in);
+}
+
+SExp *
+load_proc (SExp* args) {
+    char *filename;
+
+    if (length(args) != 1 || !is_string(car(args))) {
+        printf("ERR: load requires a single filename\n");
+        return &NIL;
+    }
+
+    filename = car(args)->atom->string_value;
+    load_and_run(filename);
     return &NIL;
 }
 
@@ -1068,7 +1082,7 @@ print (SExp *exp) {
     } else if (is_compound_procedure(exp)) {
         SExp *params = cadr(exp);
         SExp *body = caddr(exp);
-        printf("(compound-procedure "); print(params); printf(" "); print(body); printf("'<procedure-env>)");
+        printf("(compound-procedure "); print(params); printf(" "); print(body); printf(" '<procedure-env>)");
     } else if (is_nil(exp)) {
         printf("()");
     } else if (is_list(exp)) {
@@ -1192,32 +1206,42 @@ init_scheme_env () {
 
     // I/O functions
     define_variable(new_symbol("load"), new_primitive_proc(load_proc), env);
+    define_variable(new_symbol("print"), new_primitive_proc(print_proc), env);
 
     return env;
 }
 
-int main (void) {
-    global_env = init_scheme_env();
-    global_symbol_table = new_symbol_table(global_env);
+void
+run_repl () {
+    SExp *program, *result;
+
     printf("Welcome to Lithp\n");
     while (1) {
-        // read
         printf("> ");
-        SExp *program = parser__parse_program(stdin, 1);
+        program = parser__parse_program(stdin, 1);
         if (program == NULL)
             continue;
         global_symbol_table = build_symbol_table(program, global_symbol_table);
         program = prune_symbols(program, global_symbol_table);
 
-        // evaluate
-        SExp *result = eval(program, global_env);
+        result = eval(program, global_env);
         if (result == NULL) {
             printf("ERR: eval returned null\n");
             exit(1);
         }
-        global_symbol_table = build_symbol_table(result, global_symbol_table);
 
-        // print
         print(result); printf("\n");
     }
+}
+
+int main (int n_args, char **argv) {
+    global_env = init_scheme_env();
+    global_symbol_table = new_symbol_table(global_env);
+
+    if (n_args == 1) {
+        run_repl();
+    } else {
+        load_and_run(argv[1]);
+    }
+    return 0;
 }
