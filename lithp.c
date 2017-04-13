@@ -273,6 +273,10 @@ parser__parse_pair (char *token, size_t token_size, Pair *pair) {
 
 int
 parser__parse_sexp (char *token, size_t token_size, SExp *exp) {
+    if (token[0] == ';') {
+        while (token[0] != '\n') token = next_token();
+        token = next_token();
+    }
     if (token[0] == '\'') {
         if (token_size == 1) {
             token = next_token();
