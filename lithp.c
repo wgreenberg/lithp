@@ -542,8 +542,12 @@ length_proc (SExp *arguments) {
 }
 
 SExp *
-print_proc (SExp *exp) {
-    print(exp); printf("\n");
+print_proc (SExp *args) {
+    if (length(args) != 1) {
+        printf("ERR: wrong number of arguments to length, expected 1");
+        return &NIL;
+    }
+    print(car(args)); printf("\n");
     return &NIL;
 }
 
