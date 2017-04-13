@@ -458,6 +458,25 @@ int is_let (SExp *exp) { return is_tagged_list(exp, "let"); }
 int is_and (SExp *exp) { return is_tagged_list(exp, "and"); }
 int is_or (SExp *exp) { return is_tagged_list(exp, "or"); }
 
+int is_finite (SExp *exp) {
+    if (!is_pair(exp)) return 1;
+    SExp *hare, *tortoise;
+
+    tortoise = exp;
+    hare = cdr(exp);
+
+    while (tortoise != hare) {
+        if (!is_pair(tortoise) || !is_pair(hare))
+            return 1;
+        tortoise = cdr(tortoise);
+        hare = cdr(hare);
+        if (!is_pair(hare))
+            return 1;
+        hare = cdr(hare);
+    }
+    return 0;
+}
+
 int is_list (SExp *exp) {
     if (is_nil(exp))
         return 1;
@@ -1055,7 +1074,9 @@ eval_begin:
 
 void
 print (SExp *exp) {
-    if (is_atom(exp)) {
+    if (!is_finite(exp)) {
+        printf("(<circular list>)");
+    } else if (is_atom(exp)) {
         Atom *a = exp->atom;
         if (is_number(exp)) {
             printf("%ld", a->number_value);
@@ -1192,6 +1213,7 @@ init_scheme_env () {
     define_variable(new_symbol("procedure?"), new_primitive_proc(primitive_procedure_proc), env);
     define_variable(new_symbol("eq?"), new_primitive_proc(poly_eq_proc), env);
     define_variable(new_symbol("list?"), new_primitive_proc(is_list_proc), env);
+    define_variable(new_symbol("finite?"), new_primitive_proc(is_finite_proc), env);
 
     // apply and eval are special, since we'll use tail call elimination to
     // obviate the need for an actual procedure call
