@@ -1299,6 +1299,9 @@ int main (int n_args, char **argv) {
     global_env = init_scheme_env();
     global_symbol_table = new_symbol_table(global_env);
 
+    // load the prelude for non-C standard procedures
+    load_and_run("prelude.scm");
+
     if (n_args == 1) {
         run_repl();
     } else {
